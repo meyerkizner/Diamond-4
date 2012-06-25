@@ -1,0 +1,164 @@
+﻿Package com.prealpha.diamond;
+
+
+Helpers
+
+	ascii_input_character = [0x00..0x7f];
+	ht = 0x09;
+	lf = 0x0a;
+	ff = 0x0c;
+	cr = 0x0d;
+	sp = ' ';
+	
+	line_terminator = lf | cr | cr lf;
+	input_character = [ascii_input_character - [cr + lf]];
+	
+	not_star = [input_character - '*'] | line_terminator;
+	not_star_not_slash = [input_character - ['*' + '/']] | line_terminator;
+	
+	ascii_letter = [0x41..0x5a] | [0x61..0x7a];
+	ascii_digit = [0x30..0x39];
+	
+	diamond_letter = ascii_letter | '$' | '_';
+	diamond_letter_or_digit = ascii_letter | ascii_digit | '$' | '_';
+	
+	non_zero_digit = ['1'..'9'];
+	digit = ['0'..'9'];
+	hex_digit = ['0'..'9'] | ['a'..'f'] | ['A'..'F'];
+	octal_digit = ['0'..'7'];
+	binary_digit = '0' | '1';
+	
+	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\\';
+	string_character = [input_character - ['"' + '\']] | escape_sequence;
+
+
+Tokens
+	// separators
+	comma = ',';
+	dot = '.';
+	l_bkt = '[';
+	l_brc = '{';
+	l_par = '(';
+	r_bkt = ']';
+	r_brc = '}';
+	r_par = ')';
+	semi  = ';';
+	
+	// operators
+	amp = '&';
+	amp_amp = '&&';
+	amp_assign = '&=';
+	assign = '=';
+	bar = '|';
+	bar_assign = '|=';
+	bar_bar = '||';
+	caret = '^';
+	caret_assign = '^=';
+	colon = ':';
+	emark = '!';
+	eq = '==';
+	gt = '>';
+	gteq = '>=';
+	lt = '<';
+	lteq = '<=';
+	minus = '-';
+	minus_assign = '-=';
+	minus_minus = '--';
+	neq = '!=';
+	percent = '%';
+	percent_assign = '%=';
+	plus = '+';
+	plus_assign = '+=';
+	plus_plus = '++';
+	qmark = '?';
+	shl = '<<';
+	shl_assign = '<<=';
+	shr = '>>';
+	shr_assign = '>>=';
+	slash = '/';
+	slash_assign = '/=';
+	star = '*';
+	star_assign = '*=';
+
+	// keywords
+	abstract = 'abstract';
+	boolean = 'boolean';
+	break = 'break';
+	case = 'case';
+	catch = 'catch';
+	class = 'class';
+	const = 'const';
+	continue = 'continue';
+	default = 'default';
+	delete = 'delete';
+	do = 'do';
+	double = 'double';
+	else = 'else';
+	enum = 'enum';
+	extends = 'extends';
+	final = 'final';
+	finally = 'finally';
+	float = 'float';
+	for = 'for';
+	goto = 'goto';
+	if = 'if';
+	implements = 'implements';
+	instanceof = 'instanceof';
+	int = 'int';
+	interface = 'interface';
+	long = 'long';
+	native = 'native';
+	new = 'new';
+	private = 'private';
+	protected = 'protected';
+	raise = 'raise';
+	repeat = 'repeat';
+	return = 'return';
+	short = 'short';
+	static = 'static';
+	super = 'super';
+	switch = 'switch';
+	this = 'this';
+	throw = 'throw';
+	throws_token = 'throws';
+	try = 'try';
+	virtual = 'virtual';
+	void = 'void';
+	while = 'while';
+	yield = 'yield';
+	
+	// integral literals
+	decimal_numeral = '0' | non_zero_digit digit*;
+	hex_numeral = '0' ('x' | 'X') hex_digit+;
+	octal_numeral = '0' octal_digit+;
+	binary_numeral = '0' ('b' | 'B') binary_digit+;
+	integer_literal = decimal_numeral | hex_numeral | octal_numeral | binary_numeral;
+	
+	// string literal
+	string_literal = '"' string_character* '"';
+	
+	// keyword literals
+	null_literal = 'null';
+	true_literal = 'true';
+	false_literal = 'false';
+	boolean_literal = true_literal | false_literal;
+	
+	// identifier
+	identifier = diamond_letter diamond_letter_or_digit*;
+	
+	// whitespace and comments
+	whitespace = (sp | ht | ff | line_terminator);
+	block_comment = '/*' not_star+ '*'+ (not_star_not_slash not_star* '*'+)* '/';
+	line_comment = '//' input_character* line_terminator?;
+	
+
+Ignored Tokens
+
+	whitespace,
+	block_comment,
+	line_comment;
+
+
+Productions
+
+
