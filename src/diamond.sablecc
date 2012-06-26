@@ -160,10 +160,12 @@ Ignored Tokens
 Productions
 	
 	program = top_level_statement*;
-	top_level_statement = class_declaration | method_declaration | statement;
+	top_level_statement =   {class} class_declaration |
+							{function} function_declaration |
+							{statement} statement;
 	statement = standalone_statement | if_then_statement | if_then_else_statement | while_statement | for_statement | repeat_statement;
 	standalone_statement = block | empty_statement | expression_statement | switch_statement | do_statement | delete_statement | break_statement | continue_statement | return_statement;
-	statement_no_short_if = standalone_statement | if_then_else_statement_no_short_if | while_statement_no_short_if | for_statement_no_short_if | repeat_statement_no_short_if; // see JLS 3rd ed. §14.5
+	statement_no_short_if = standalone_statement | if_then_else_statement_no_short_if | while_statement_no_short_if | for_statement_no_short_if | repeat_statement_no_short_if; // see JLS 3rd ed. sec. 14.5
 	
 	class_declaration = class identifier class_body;
 	class_body = l_brc class_statement* r_brc;
@@ -190,7 +192,7 @@ Productions
                             method_invocation |
                             constructor_invocation;
 	
-	// see JLS 3rd ed. §14.5 and §14.9
+	// see JLS 3rd ed. sec. 14.5 and sec. 14.9
 	if_then_statement = if l_par expression r_par statement;
 	if_then_else_statement = if l_par expression r_par statement_no_short_if else statement;
 	if_then_else_statement_no_short_if = if l_par expression r_par statement_no_short_if else statement_no_short_if;
