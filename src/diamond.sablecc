@@ -34,6 +34,7 @@ Helpers
 
 Tokens
 	// separators
+	colon = ':';
 	comma = ',';
 	dot = '.';
 	l_bkt = '[';
@@ -54,7 +55,7 @@ Tokens
 	bar_bar = '||';
 	caret = '^';
 	caret_assign = '^=';
-	colon = ':';
+	caret_caret = '^^';
 	emark = '!';
 	eq = '==';
 	gt = '>';
@@ -293,8 +294,10 @@ Productions
 
 	conditional_and_expression =    bitwise_or_expression |
 									conditional_and_expression amp_amp bitwise_or_expression;
-	conditional_or_expression =     conditional_and_expression |
-									conditional_or_expression bar_bar conditional_and_expression;
+	conditional_xor_expression =    conditional_and_expression |
+									conditional_xor_expression caret_caret conditional_and_expression;
+	conditional_or_expression =     conditional_xor_expression |
+									conditional_or_expression bar_bar conditional_xor_expression;
 
 	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
 
