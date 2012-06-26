@@ -1,8 +1,8 @@
-﻿Package com.prealpha.diamond;
+Package com.prealpha.diamond;
 
 
 Helpers
-
+	
 	ascii_input_character = [0x00..0x7f];
 	ht = 0x09;
 	lf = 0x0a;
@@ -28,12 +28,17 @@ Helpers
 	octal_digit = ['0'..'7'];
 	binary_digit = '0' | '1';
 	
+	decimal_numeral = '0' | non_zero_digit digit*;
+	hex_numeral = '0' ('x' | 'X') hex_digit+;
+	octal_numeral = '0' octal_digit+;
+	binary_numeral = '0' ('b' | 'B') binary_digit+;
+	
 	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\\';
 	string_character = [input_character - ['"' + '\']] | escape_sequence;
 
 
 Tokens
-
+	
 	// separators
 	comma = ',';
 	dot = '.';
@@ -81,7 +86,7 @@ Tokens
 	slash_assign = '/=';
 	star = '*';
 	star_assign = '*=';
-
+	
 	// keywords
 	abstract = 'abstract';
 	boolean = 'boolean';
@@ -129,21 +134,12 @@ Tokens
 	while = 'while';
 	yield = 'yield';
 	
-	// integral literals
-	decimal_numeral = '0' | non_zero_digit digit*;
-	hex_numeral = '0' ('x' | 'X') hex_digit+;
-	octal_numeral = '0' octal_digit+;
-	binary_numeral = '0' ('b' | 'B') binary_digit+;
+	// literals
 	integral_literal = decimal_numeral | hex_numeral | octal_numeral | binary_numeral;
-	
-	// string literal
 	string_literal = '"' string_character* '"';
-	
-	// keyword literals
 	null_literal = 'null';
 	true_literal = 'true';
 	false_literal = 'false';
-	boolean_literal = true_literal | false_literal;
 	
 	// identifier
 	identifier = identifier_letter identifier_letter_or_digit*;
@@ -155,35 +151,36 @@ Tokens
 
 
 Ignored Tokens
-
+	
 	whitespace,
 	block_comment,
 	line_comment;
 
 
 Productions
-
-	program = (class_declaration | function_declaration | statement)*;
+	
+	program = top_level_statement*;
+	top_level_statement = class_declaration | method_declaration | statement;
 	statement = standalone_statement | if_then_statement | if_then_else_statement | while_statement | for_statement | repeat_statement;
 	standalone_statement = block | empty_statement | expression_statement | switch_statement | do_statement | delete_statement | break_statement | continue_statement | return_statement;
 	statement_no_short_if = standalone_statement | if_then_else_statement_no_short_if | while_statement_no_short_if | for_statement_no_short_if | repeat_statement_no_short_if; // see JLS 3rd ed. §14.5
-
+	
 	class_declaration = class identifier class_body;
 	class_body = l_brc class_statement* r_brc;
 	class_statement = field_declaration | function_declaration | constructor_declaration;
-
+	
 	field_declaration = field_modifier* type_token identifier semi;
 	field_modifier = private | static;
-
-	function_declaration = function_modifier* type_token identifier formal_parameter_list block;
-	constructor_declaration = function_modifier* identifier new formal_parameter_list block;
-	formal_parameter_list = l_par (local_declaration (comma local_declaration)*)? r_par;
+	
+	function_declaration = function_modifier* type_token identifier l_par formal_parameter_list r_par block;
+	constructor_declaration = function_modifier* identifier new l_par formal_parameter_list? r_par block;
+	formal_parameter_list = local_declaration | formal_parameter_list comma local_declaration;
 	function_modifier = private | static;
-
+	
 	block = l_brc statement* r_brc;
-
+	
 	empty_statement = semi;
-
+	
 	expression_statement = statement_expression semi;
     statement_expression =  assignment |
                             pre_increment_expression |
@@ -192,37 +189,38 @@ Productions
                             post_decrement_expression |
                             method_invocation |
                             constructor_invocation;
-
+	
 	// see JLS 3rd ed. §14.5 and §14.9
 	if_then_statement = if l_par expression r_par statement;
 	if_then_else_statement = if l_par expression r_par statement_no_short_if else statement;
 	if_then_else_statement_no_short_if = if l_par expression r_par statement_no_short_if else statement_no_short_if;
-
+	
 	switch_statement = switch l_par expression r_par switch_block;
-    switch_block = l_brc (switch_label* statement+)* r_brc;
+    switch_block = l_brc switch_labels* r_brc;
+	switch_labels = switch_label* statement+;
     switch_label = case integral_literal colon | default colon;
-
+	
 	while_statement = while l_par expression r_par statement;
 	while_statement_no_short_if = while l_par expression r_par statement_no_short_if;
-
+	
 	do_statement = do statement while l_par expression r_par semi;
-
+	
     for_statement = for l_par for_init? semi expression? semi for_update? r_par statement;
     for_statement_no_short_if = for l_par for_init? semi expression? semi for_update? r_par statement_no_short_if;
     for_init = statement_expression | local_declaration;
     for_update = statement_expression;
-
+	
     repeat_statement = repeat l_par expression r_par statement;
     repeat_statement_no_short_if = repeat l_par expression r_par statement_no_short_if;
-
+	
 	delete_statement = delete identifier semi;
-
+	
 	break_statement = break semi;
-
+	
 	continue_statement = continue semi;
-
+	
 	return_statement = return expression? semi;
-
+	
 	primary_expression =    literal |
 							this |
 							l_par expression r_par |
@@ -231,33 +229,35 @@ Productions
 							field_access |
 							array_access;
 	literal =   integral_literal |
-				boolean_literal |
 				string_literal |
-				null_literal;
-
+				null_literal |
+				true_literal |
+				false_literal;
+	
 	method_invocation = implied_target_method_invocation |
 						identifier dot implied_target_method_invocation |
 						primary_expression dot implied_target_method_invocation |
 						type_token dot implied_target_method_invocation;
-	implied_target_method_invocation = identifier l_par (expression (comma expression)*)? r_par
-
-	constructor_invocation =    new l_par (expression (comma expression)*)? r_par |
+	implied_target_method_invocation = identifier l_par actual_parameter_list? r_par;
+	actual_parameter_list = expression | actual_parameter_list comma expression;
+	
+	constructor_invocation =    new l_par actual_parameter_list? r_par |
 								type_token dot constructor_invocation;
-
+	
 	field_access =  identifier dot identifier |
 					primary_expression dot identifier |
 					type_token dot identifier;
-
+	
 	array_access =  identifier l_bkt expression r_bkt |
 					primary_expression l_bkt expression r_bkt;
-
+	
 	postfix_expression =    primary_expression |
 							identifier |
 							post_increment_expression |
 							post_decrement_expression;
 	post_increment_expression = postfix_expression plus_plus;
 	post_decrement_expression = postfix_expression minus_minus;
-
+	
 	unary_expression =  pre_increment_expression |
 						post_increment_expression |
 						plus unary_expression |
@@ -266,55 +266,55 @@ Productions
 						postfix_expression;
 	pre_increment_expression = plus_plus unary_expression;
 	post_increment_expression = minus_minus unary_expression;
-
+	
 	multiplicative_expression = unary_expression |
 								multiplicative_expression star unary_expression |
 								multiplicative_expression slash unary_expression |
 								multiplicative_expression percent unary_expression;
-
+	
 	additive_expression =   multiplicative_expression |
 							additive_expression plus multiplicative_expression |
 							additive_expression minus multiplicative_expression;
-
+	
 	shift_expression =  additive_expression |
 						shift_expression shl additive_expression |
 						shift_expression shr additive_expression;
-
+	
 	relational_expression = shift_expression |
 							relational_expression lt shift_expression |
 							relational_expression gt shift_expression |
 							relational_expression lteq shift_expression |
 							relational_expression gteq shift_expression;
-
+	
 	equality_expression =   relational_expression |
 							equality_expression eq relational_expression |
 							equality_expression neq relational_expression;
-
+	
 	bitwise_and_expression =    equality_expression |
 								bitwise_and_expression amp equality_expression;
 	bitwise_xor_expression =    bitwise_and_expression |
 								bitwise_xor_expression caret bitwise_and_expression;
 	bitwise_or_expression =     bitwise_xor_expression |
 								bitwise_or_expression bar bitwise_xor_expression;
-
+	
 	conditional_and_expression =    bitwise_or_expression |
 									conditional_and_expression amp_amp bitwise_or_expression;
 	conditional_xor_expression =    conditional_and_expression |
 									conditional_xor_expression caret_caret conditional_and_expression;
 	conditional_or_expression =     conditional_xor_expression |
 									conditional_or_expression bar_bar conditional_xor_expression;
-
+	
 	conditional_expression =    conditional_or_expression |
 								conditional_or_expression qmark expression colon conditional_expression;
-
+	
 	assignment_expression = conditional_expression |
 							assignment;
 	assignment = left_hand_side assignment_operator assignment_expression;
 	left_hand_side = local_declaration | identifier | field_access | array_access;
 	local_declaration = type_token identifier;
 	assignment_operator = assign | star_assign | slash_assign | percent_assign | plus_assign | minus_assign | shl_assign | shr_assign | amp_assign | bar_assign | caret_assign;
-
+	
 	expression = assignment_expression;
-
+	
 	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
 
