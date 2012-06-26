@@ -255,21 +255,20 @@ Productions
 				{null} null_literal |
 				{true} true_literal |
 				{false} false_literal;
+
+	member_access_prefix =  {identifier_member} identifier dot |
+							{expression_member} primary_expression dot |
+							{type_token_member} type_token dot;
 	
-	function_invocation = {implied_target} basic_function_invocation |
-						{named_target} [target]:identifier dot basic_function_invocation |
-						{expression_target} [target]:primary_expression dot basic_function_invocation |
-						{type_token_target} [target]:type_token dot basic_function_invocation;
+	function_invocation = [target]:member_access_prefix? basic_function_invocation;
 	basic_function_invocation = [function_name]:identifier l_par actual_parameter_list? r_par;
+	constructor_invocation =    {implied_target} basic_constructor_invocation |
+								{type_token_target} type_token dot basic_constructor_invocation;
+	basic_constructor_invocation = new l_par actual_parameter_list? r_par;
 	actual_parameter_list = {simple} expression |
-							{compound} actual_parameter_list comma expression;
+                            {compound} actual_parameter_list comma expression;
 	
-	constructor_invocation =    {implied_target} new l_par actual_parameter_list? r_par |
-								{type_token_target} type_token dot constructor_invocation;
-	
-	field_access =  {named_target} [target]:identifier dot [field_name]:identifier |
-					{expression_target} [target]:primary_expression dot [field_name]:identifier |
-					{type_token_target} [target]:type_token dot [field_name]:identifier;
+	field_access =  [target]:member_access_prefix [field_name]:identifier;
 	
 	array_access =  {named_target} [target]:identifier l_bkt [index]:expression r_bkt |
 					{expression_target} [target]:primary_expression l_bkt [index]:expression r_bkt;
