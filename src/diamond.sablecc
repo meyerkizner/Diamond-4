@@ -221,3 +221,30 @@ Productions
 
 	return_statement = return expression? semi;
 
+	primary_expression =    literal |
+							identifier |
+							this |
+							l_par expression r_par |
+							method_invocation |
+							constructor_invocation |
+							field_access |
+							array_access;
+	literal =   integral_literal |
+				boolean_literal |
+				string_literal |
+				null_literal;
+
+	method_invocation = implied_target_method_invocation |
+						primary_expression dot implied_target_method_invocation |
+						type_token dot implied_target_method_invocation;
+	implied_target_method_invocation = identifier l_par (expression (comma expression)*)? r_par
+
+	constructor_invocation =    new l_par (expression (comma expression)*)? r_par |
+								type_token dot constructor_invocation;
+
+	field_access = primary_expression dot identifier | type_token dot identifier;
+
+	array_access = primary_expression l_bkt primary_expression r_bkt;
+
+	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
+
