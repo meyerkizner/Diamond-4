@@ -355,6 +355,6 @@ Productions
 					{short} short |
 					{int} int |
 					{long} long |
-					{identifier} identifier |
-					{array} type_token l_bkt r_bkt;
+					{user_defined} identifier bracket_pair*;
+	bracket_pair = l_bkt r_bkt;
 
