@@ -252,5 +252,49 @@ Productions
 	post_increment_expression = postfix_expression plus_plus;
 	post_decrement_expression = postfix_expression minus_minus;
 
+	unary_expression =  pre_increment_expression |
+						post_increment_expression |
+						plus unary_expression |
+						minus unary_expression |
+						emark unary_expression
+						postfix_expression;
+	pre_increment_expression = plus_plus unary_expression;
+	post_increment_expression = minus_minus unary_expression;
+
+	multiplicative_expression = unary_expression |
+								multiplicative_expression star unary_expression |
+								multiplicative_expression slash unary_expression |
+								multiplicative_expression percent unary_expression;
+
+	additive_expression =   multiplicative_expression |
+							additive_expression plus multiplicative_expression |
+							additive_expression minus multiplicative_expression;
+
+	shift_expression =  additive_expression |
+						shift_expression shl additive_expression |
+						shift_expression shr additive_expression;
+
+	relational_expression = shift_expression |
+							relational_expression lt shift_expression |
+							relational_expression gt shift_expression |
+							relational_expression lteq shift_expression |
+							relational_expression gteq shift_expression;
+
+	equality_expression =   relational_expression |
+							equality_expression eq relational_expression |
+							equality_expression neq relational_expression;
+
+	bitwise_and_expression =    equality_expression |
+								bitwise_and_expression amp equality_expression;
+	bitwise_xor_expression =    bitwise_and_expression |
+								bitwise_xor_expression caret bitwise_and_expression;
+	bitwise_or_expression =     bitwise_xor_expression |
+								bitwise_or_expression bar bitwise_xor_expression;
+
+	conditional_and_expression =    bitwise_or_expression |
+									conditional_and_expression amp_amp bitwise_or_expression;
+	conditional_or_expression =     conditional_and_expression |
+									conditional_or_expression bar_bar conditional_and_expression;
+
 	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
 
