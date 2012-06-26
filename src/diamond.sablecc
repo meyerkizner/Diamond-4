@@ -222,7 +222,6 @@ Productions
 	return_statement = return expression? semi;
 
 	primary_expression =    literal |
-							identifier |
 							this |
 							l_par expression r_par |
 							method_invocation |
@@ -245,6 +244,13 @@ Productions
 	field_access = primary_expression dot identifier | type_token dot identifier;
 
 	array_access = primary_expression l_bkt primary_expression r_bkt;
+
+	postfix_expression =    primary_expression |
+							identifier |
+							post_increment_expression |
+							post_decrement_expression;
+	post_increment_expression = postfix_expression plus_plus;
+	post_decrement_expression = postfix_expression minus_minus;
 
 	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
 
