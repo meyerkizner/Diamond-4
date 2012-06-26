@@ -132,7 +132,7 @@ Tokens
 	hex_numeral = '0' ('x' | 'X') hex_digit+;
 	octal_numeral = '0' octal_digit+;
 	binary_numeral = '0' ('b' | 'B') binary_digit+;
-	integer_literal = decimal_numeral | hex_numeral | octal_numeral | binary_numeral;
+	integral_literal = decimal_numeral | hex_numeral | octal_numeral | binary_numeral;
 	
 	// string literal
 	string_literal = '"' string_character* '"';
@@ -161,4 +161,63 @@ Ignored Tokens
 
 Productions
 
+	program = (class_declaration | function_declaration | statement)*;
+	statement = standalone_statement | if_then_statement | if_then_else_statement | while_statement | for_statement | repeat_statement;
+	standalone_statement = block | empty_statement | expression_statement | switch_statement | do_statement | delete_statement | break_statement | continue_statement | return_statement;
+	statement_no_short_if = standalone_statement | if_then_else_statement_no_short_if | while_statement_no_short_if | for_statement_no_short_if | repeat_statement_no_short_if; // see JLS 3rd ed. §14.5
+
+	class_declaration = class identifier class_body;
+	class_body = l_brc class_statement* r_brc;
+	class_statement = field_declaration | function_declaration | constructor_declaration;
+
+	field_declaration = field_modifier* type_token identifier semi;
+	field_modifier = private | static;
+
+	function_declaration = function_modifier* type_token identifier formal_parameter_list block;
+	constructor_declaration = function_modifier* identifier new formal_parameter_list block;
+	formal_parameter_list = l_par (local_declaration (comma local_declaration)*)? r_par;
+	function_modifier = private | static;
+
+	block = l_brc statement* r_brc;
+
+	empty_statement = semi;
+
+	expression_statement = statement_expression semi;
+    statement_expression =  assignment |
+                            pre_increment_expression |
+                            pre_decrement_expression |
+                            post_increment_expression |
+                            post_decrement_expression |
+                            method_invocation |
+                            constructor_invocation;
+
+	// see JLS 3rd ed. §14.5 and §14.9
+	if_then_statement = if l_par expression r_par statement;
+	if_then_else_statement = if l_par expression r_par statement_no_short_if else statement;
+	if_then_else_statement_no_short_if = if l_par expression r_par statement_no_short_if else statement_no_short_if;
+
+	switch_statement = switch l_par expression r_par switch_block;
+    switch_block = l_brc (switch_label* statement+)* r_brc;
+    switch_label = case integral_literal colon | default colon;
+
+	while_statement = while l_par expression r_par statement;
+	while_statement_no_short_if = while l_par expression r_par statement_no_short_if;
+
+	do_statement = do statement while l_par expression r_par semi;
+
+    for_statement = for l_par for_init? semi expression? semi for_update? r_par statement;
+    for_statement_no_short_if = for l_par for_init? semi expression? semi for_update? r_par statement_no_short_if;
+    for_init = statement_expression | local_declaration;
+    for_update = statement_expression;
+
+    repeat_statement = repeat l_par expression r_par statement;
+    repeat_statement_no_short_if = repeat l_par expression r_par statement_no_short_if;
+
+	delete_statement = delete identifier semi;
+
+	break_statement = break semi;
+
+	continue_statement = continue semi;
+
+	return_statement = return expression? semi;
 
