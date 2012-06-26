@@ -216,7 +216,7 @@ Productions
 	
 	switch_statement = switch l_par [value]:expression r_par switch_block;
     switch_block = l_brc switch_labels* r_brc;
-	switch_labels = switch_label* statement+;
+	switch_labels = switch_label+ statement+;
     switch_label =  case [value]:integral_literal colon |
                     {default} default colon;
 	
