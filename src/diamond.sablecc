@@ -163,57 +163,77 @@ Productions
 	top_level_statement =   {class} class_declaration |
 							{function} function_declaration |
 							{statement} statement;
-	statement = standalone_statement | if_then_statement | if_then_else_statement | while_statement | for_statement | repeat_statement;
-	standalone_statement = block | empty_statement | expression_statement | switch_statement | do_statement | delete_statement | break_statement | continue_statement | return_statement;
-	statement_no_short_if = standalone_statement | if_then_else_statement_no_short_if | while_statement_no_short_if | for_statement_no_short_if | repeat_statement_no_short_if; // see JLS 3rd ed. sec. 14.5
+	statement = {standalone} standalone_statement |
+				{if_then} if_then_statement |
+				{if_then_else} if_then_else_statement |
+				{while} while_statement |
+				{for} for_statement |
+				{repeat} repeat_statement;
+	standalone_statement =  {block} block |
+							{empty} empty_statement |
+							{expression} expression_statement |
+							{switch} switch_statement |
+							{do} do_statement |
+							{delete} delete_statement |
+							{break} break_statement |
+							{continue} continue_statement |
+							{return} return_statement;
+	statement_no_short_if = {standalone} standalone_statement |
+							{if_then_else} if_then_else_statement_no_short_if |
+							{while} while_statement_no_short_if |
+							{for} for_statement_no_short_if |
+							{repeat} repeat_statement_no_short_if;
 	
-	class_declaration = class identifier class_body;
+	class_declaration = class [name]:identifier class_body;
 	class_body = l_brc class_statement* r_brc;
-	class_statement = field_declaration | function_declaration | constructor_declaration;
+	class_statement =   {field} field_declaration |
+						{function} function_declaration |
+						{constructor} constructor_declaration;
 	
-	field_declaration = field_modifier* type_token identifier semi;
-	field_modifier = private | static;
+	field_declaration = [modifiers]:field_modifier* [type]:type_token [name]:identifier semi;
+	field_modifier =    {private} private |
+						{static} static;
 	
-	function_declaration = function_modifier* type_token identifier l_par formal_parameter_list r_par block;
-	constructor_declaration = function_modifier* identifier new l_par formal_parameter_list? r_par block;
-	formal_parameter_list = local_declaration | formal_parameter_list comma local_declaration;
-	function_modifier = private | static;
+	function_declaration = [modifiers]:function_modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block;
+	constructor_declaration = [modifiers]:function_modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block;
+	formal_parameter_list = {simple} local_declaration |
+							{compound} formal_parameter_list comma local_declaration;
+	function_modifier = {private} private |
+						{static} static;
 	
 	block = l_brc statement* r_brc;
 	
 	empty_statement = semi;
 	
 	expression_statement = statement_expression semi;
-    statement_expression =  assignment |
-                            pre_increment_expression |
-                            pre_decrement_expression |
-                            post_increment_expression |
-                            post_decrement_expression |
-                            method_invocation |
-                            constructor_invocation;
+    statement_expression =  {assignment} assignment |
+                            {pre_increment} pre_increment_expression |
+                            {pre_decrement} pre_decrement_expression |
+                            {post_increment} post_increment_expression |
+                            {post_decrement} post_decrement_expression |
+                            {function_invocation} function_invocation |
+                            {constructor_invocation} constructor_invocation;
+
+	if_then_statement = if l_par [condition]:expression r_par statement;
+	if_then_else_statement = if l_par [condition]:expression r_par statement_no_short_if else statement;
+	if_then_else_statement_no_short_if = if l_par [condition]:expression r_par statement_no_short_if else statement_no_short_if;
 	
-	// see JLS 3rd ed. sec. 14.5 and sec. 14.9
-	if_then_statement = if l_par expression r_par statement;
-	if_then_else_statement = if l_par expression r_par statement_no_short_if else statement;
-	if_then_else_statement_no_short_if = if l_par expression r_par statement_no_short_if else statement_no_short_if;
-	
-	switch_statement = switch l_par expression r_par switch_block;
+	switch_statement = switch l_par [value]:expression r_par switch_block;
     switch_block = l_brc switch_labels* r_brc;
 	switch_labels = switch_label* statement+;
-    switch_label = case integral_literal colon | default colon;
+    switch_label =  case [value]:integral_literal colon |
+                    {default} default colon;
 	
-	while_statement = while l_par expression r_par statement;
-	while_statement_no_short_if = while l_par expression r_par statement_no_short_if;
+	while_statement = while l_par [condition]:expression r_par statement;
+	while_statement_no_short_if = while l_par [condition]:expression r_par statement_no_short_if;
 	
-	do_statement = do statement while l_par expression r_par semi;
+	do_statement = do statement while l_par [condition]:expression r_par semi;
 	
-    for_statement = for l_par for_init? semi expression? semi for_update? r_par statement;
-    for_statement_no_short_if = for l_par for_init? semi expression? semi for_update? r_par statement_no_short_if;
-    for_init = statement_expression | local_declaration;
-    for_update = statement_expression;
+    for_statement = for l_par [init]:statement_expression? semi [condition]:expression? semi [update]:statement_expression? r_par statement;
+    for_statement_no_short_if = for l_par [init]:statement_expression? semi [condition]:expression? semi [update]:statement_expression? r_par statement_no_short_if;
 	
-    repeat_statement = repeat l_par expression r_par statement;
-    repeat_statement_no_short_if = repeat l_par expression r_par statement_no_short_if;
+    repeat_statement = repeat l_par [repeat_count]:expression r_par statement;
+    repeat_statement_no_short_if = repeat l_par [repeat_count]:expression r_par statement_no_short_if;
 	
 	delete_statement = delete identifier semi;
 	
@@ -221,102 +241,121 @@ Productions
 	
 	continue_statement = continue semi;
 	
-	return_statement = return expression? semi;
+	return_statement = return [return_value]:expression? semi;
 	
-	primary_expression =    literal |
-							this |
-							l_par expression r_par |
-							method_invocation |
-							constructor_invocation |
-							field_access |
-							array_access;
-	literal =   integral_literal |
-				string_literal |
-				null_literal |
-				true_literal |
-				false_literal;
+	primary_expression =    {literal} literal |
+							{this} this |
+							{parenthetical} l_par expression r_par |
+							{method_invocation} method_invocation |
+							{constructor_invocation} constructor_invocation |
+							{field_access} field_access |
+							{array_access} array_access;
+	literal =   {integral} integral_literal |
+				{string} string_literal |
+				{null} null_literal |
+				{true} true_literal |
+				{false} false_literal;
 	
-	method_invocation = implied_target_method_invocation |
-						identifier dot implied_target_method_invocation |
-						primary_expression dot implied_target_method_invocation |
-						type_token dot implied_target_method_invocation;
-	implied_target_method_invocation = identifier l_par actual_parameter_list? r_par;
-	actual_parameter_list = expression | actual_parameter_list comma expression;
+	method_invocation = {implied_target} implied_target_method_invocation |
+						{named_target} [target]:identifier dot implied_target_method_invocation |
+						{target_expression} [target]:primary_expression dot implied_target_method_invocation |
+						{type_token_target} [target]:type_token dot implied_target_method_invocation;
+	implied_target_method_invocation = [method_name]:identifier l_par actual_parameter_list? r_par;
+	actual_parameter_list = {simple} expression |
+							{compound} actual_parameter_list comma expression;
 	
-	constructor_invocation =    new l_par actual_parameter_list? r_par |
-								type_token dot constructor_invocation;
+	constructor_invocation =    {implied_target} new l_par actual_parameter_list? r_par |
+								{type_token_target} type_token dot constructor_invocation;
 	
-	field_access =  identifier dot identifier |
-					primary_expression dot identifier |
-					type_token dot identifier;
+	field_access =  {named_target} [target]:identifier dot [field_name]:identifier |
+					{target_expression} [target]:primary_expression dot [field_name]:identifier |
+					{type_token_target} [target]:type_token dot [field_name]:identifier;
 	
-	array_access =  identifier l_bkt expression r_bkt |
-					primary_expression l_bkt expression r_bkt;
+	array_access =  {named_target} [target]:identifier l_bkt [index]:expression r_bkt |
+					{target_expression} [target]:primary_expression l_bkt [index]:expression r_bkt;
 	
-	postfix_expression =    primary_expression |
-							identifier |
-							post_increment_expression |
-							post_decrement_expression;
+	postfix_expression =    {primary} primary_expression |
+							{identifier} identifier |
+							{post_increment} post_increment_expression |
+							{post_decrement} post_decrement_expression;
 	post_increment_expression = postfix_expression plus_plus;
 	post_decrement_expression = postfix_expression minus_minus;
 	
-	unary_expression =  pre_increment_expression |
-						post_increment_expression |
-						plus unary_expression |
-						minus unary_expression |
-						emark unary_expression |
-						postfix_expression;
+	unary_expression =  {pre_increment} pre_increment_expression |
+						{pre_decrement} post_increment_expression |
+						{unary_plus} plus unary_expression |
+						{unary_minus} minus unary_expression |
+						{logical_not} emark unary_expression |
+						{postfix} postfix_expression;
 	pre_increment_expression = plus_plus unary_expression;
 	post_increment_expression = minus_minus unary_expression;
 	
-	multiplicative_expression = unary_expression |
-								multiplicative_expression star unary_expression |
-								multiplicative_expression slash unary_expression |
-								multiplicative_expression percent unary_expression;
+	multiplicative_expression = {unary} unary_expression |
+								{multiplication} multiplicative_expression star unary_expression |
+								{division} multiplicative_expression slash unary_expression |
+								{modulus} multiplicative_expression percent unary_expression;
 	
-	additive_expression =   multiplicative_expression |
-							additive_expression plus multiplicative_expression |
-							additive_expression minus multiplicative_expression;
+	additive_expression =   {multiplicative} multiplicative_expression |
+							{addition} additive_expression plus multiplicative_expression |
+							{subtraction} additive_expression minus multiplicative_expression;
 	
-	shift_expression =  additive_expression |
-						shift_expression shl additive_expression |
-						shift_expression shr additive_expression;
+	shift_expression =  {additive} additive_expression |
+						{shift_left} shift_expression shl additive_expression |
+						{shift_right} shift_expression shr additive_expression;
 	
-	relational_expression = shift_expression |
-							relational_expression lt shift_expression |
-							relational_expression gt shift_expression |
-							relational_expression lteq shift_expression |
-							relational_expression gteq shift_expression;
+	relational_expression = {shift} shift_expression |
+							{less_than} relational_expression lt shift_expression |
+							{greater_than} relational_expression gt shift_expression |
+							{less_or_equal} relational_expression lteq shift_expression |
+							{greater_or_equal} relational_expression gteq shift_expression;
 	
-	equality_expression =   relational_expression |
-							equality_expression eq relational_expression |
-							equality_expression neq relational_expression;
+	equality_expression =   {relational} relational_expression |
+							{equals} equality_expression eq relational_expression |
+							{not_equals} equality_expression neq relational_expression;
 	
-	bitwise_and_expression =    equality_expression |
-								bitwise_and_expression amp equality_expression;
-	bitwise_xor_expression =    bitwise_and_expression |
-								bitwise_xor_expression caret bitwise_and_expression;
-	bitwise_or_expression =     bitwise_xor_expression |
-								bitwise_or_expression bar bitwise_xor_expression;
+	bitwise_and_expression =    {equality} equality_expression |
+								{bitwise_and} bitwise_and_expression amp equality_expression;
+	bitwise_xor_expression =    {bitwise_and} bitwise_and_expression |
+								{bitwise_xor} bitwise_xor_expression caret bitwise_and_expression;
+	bitwise_or_expression =     {bitwise_xor} bitwise_xor_expression |
+								{bitwise_or} bitwise_or_expression bar bitwise_xor_expression;
 	
-	conditional_and_expression =    bitwise_or_expression |
-									conditional_and_expression amp_amp bitwise_or_expression;
-	conditional_xor_expression =    conditional_and_expression |
-									conditional_xor_expression caret_caret conditional_and_expression;
-	conditional_or_expression =     conditional_xor_expression |
-									conditional_or_expression bar_bar conditional_xor_expression;
+	conditional_and_expression =    {bitwise_or} bitwise_or_expression |
+									{conditional_and} conditional_and_expression amp_amp bitwise_or_expression;
+	conditional_xor_expression =    {conditional_and} conditional_and_expression |
+									{conditional_xor} conditional_xor_expression caret_caret conditional_and_expression;
+	conditional_or_expression =     {conditional_xor} conditional_xor_expression |
+									{conditional_or} conditional_or_expression bar_bar conditional_xor_expression;
 	
-	conditional_expression =    conditional_or_expression |
-								conditional_or_expression qmark expression colon conditional_expression;
+	conditional_expression =    {conditional_or} conditional_or_expression |
+								{conditional} conditional_or_expression qmark expression colon conditional_expression;
 	
-	assignment_expression = conditional_expression |
-							assignment;
+	assignment_expression = {conditional} conditional_expression |
+							{assignment} assignment;
 	assignment = left_hand_side assignment_operator assignment_expression;
-	left_hand_side = local_declaration | identifier | field_access | array_access;
+	left_hand_side =    {local_declaration} local_declaration |
+						{identifier} identifier |
+						{field_access} field_access |
+						{array_access} array_access;
 	local_declaration = type_token identifier;
-	assignment_operator = assign | star_assign | slash_assign | percent_assign | plus_assign | minus_assign | shl_assign | shr_assign | amp_assign | bar_assign | caret_assign;
+	assignment_operator =   {assign} assign |
+							{star_assign} star_assign |
+							{slash_assign} slash_assign |
+							{percent_assign} percent_assign |
+							{plus_assign} plus_assign |
+							{minus_assign} minus_assign |
+							{shl_assign} shl_assign |
+							{shr_assign} shr_assign |
+							{amp_assign} amp_assign |
+							{bar_assign} bar_assign |
+							{caret_assign} caret_assign;
 	
 	expression = assignment_expression;
 	
-	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
+	type_token =    {boolean} boolean |
+					{short} short |
+					{int} int |
+					{long} long |
+					{identifier} identifier |
+					{array} type_token l_bkt r_bkt;
 
