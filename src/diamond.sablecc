@@ -93,7 +93,7 @@ Tokens
 	break = 'break';
 	case = 'case';
 	catch = 'catch';
-	class = 'class';
+	class_token = 'class';
 	const = 'const';
 	continue = 'continue';
 	default = 'default';
@@ -163,12 +163,12 @@ Productions
 	top_level_statement =   {class} class_declaration |
 							{function} function_declaration |
 							{statement} statement;
-	statement = {standalone} standalone_statement |
-				{if_then} if_then_statement |
-				{if_then_else} if_then_else_statement |
-				{while} while_statement |
-				{for} for_statement |
-				{repeat} repeat_statement;
+	statement = {standalone_statement} standalone_statement |
+				{if_then_statement} if_then_statement |
+				{if_then_else_statement} if_then_else_statement |
+				{while_statement} while_statement |
+				{for_statement} for_statement |
+				{repeat_statement} repeat_statement;
 	standalone_statement =  {block} block |
 							{empty} empty_statement |
 							{expression} expression_statement |
@@ -179,12 +179,12 @@ Productions
 							{continue} continue_statement |
 							{return} return_statement;
 	statement_no_short_if = {standalone} standalone_statement |
-							{if_then_else} if_then_else_statement_no_short_if |
-							{while} while_statement_no_short_if |
-							{for} for_statement_no_short_if |
-							{repeat} repeat_statement_no_short_if;
+							{if_then_else_statement} if_then_else_statement_no_short_if |
+							{while_statement} while_statement_no_short_if |
+							{for_statement} for_statement_no_short_if |
+							{repeat_statement} repeat_statement_no_short_if;
 	
-	class_declaration = class [name]:identifier class_body;
+	class_declaration = class_token [name]:identifier class_body;
 	class_body = l_brc class_statement* r_brc;
 	class_statement =   {field} field_declaration |
 						{function} function_declaration |
@@ -214,9 +214,9 @@ Productions
                             {function_invocation} function_invocation |
                             {constructor_invocation} constructor_invocation;
 
-	if_then_statement = if l_par [condition]:expression r_par statement;
-	if_then_else_statement = if l_par [condition]:expression r_par statement_no_short_if else statement;
-	if_then_else_statement_no_short_if = if l_par [condition]:expression r_par statement_no_short_if else statement_no_short_if;
+	if_then_statement = if l_par [condition]:expression r_par [if_body]:statement;
+	if_then_else_statement = if l_par [condition]:expression r_par [if_body]:statement_no_short_if else [else_body]:statement;
+	if_then_else_statement_no_short_if = if l_par [condition]:expression r_par [if_body]:statement_no_short_if else [else_body]:statement_no_short_if;
 	
 	switch_statement = switch l_par [value]:expression r_par switch_block;
     switch_block = l_brc switch_labels* r_brc;
@@ -229,8 +229,8 @@ Productions
 	
 	do_statement = do statement while l_par [condition]:expression r_par semi;
 	
-    for_statement = for l_par [init]:statement_expression? semi [condition]:expression? semi [update]:statement_expression? r_par statement;
-    for_statement_no_short_if = for l_par [init]:statement_expression? semi [condition]:expression? semi [update]:statement_expression? r_par statement_no_short_if;
+    for_statement = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement;
+    for_statement_no_short_if = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if;
 	
     repeat_statement = repeat l_par [repeat_count]:expression r_par statement;
     repeat_statement_no_short_if = repeat l_par [repeat_count]:expression r_par statement_no_short_if;
@@ -246,7 +246,7 @@ Productions
 	primary_expression =    {literal} literal |
 							{this} this |
 							{parenthetical} l_par expression r_par |
-							{method_invocation} method_invocation |
+							{function_invocation} function_invocation |
 							{constructor_invocation} constructor_invocation |
 							{field_access} field_access |
 							{array_access} array_access;
@@ -256,11 +256,11 @@ Productions
 				{true} true_literal |
 				{false} false_literal;
 	
-	method_invocation = {implied_target} implied_target_method_invocation |
-						{named_target} [target]:identifier dot implied_target_method_invocation |
-						{target_expression} [target]:primary_expression dot implied_target_method_invocation |
-						{type_token_target} [target]:type_token dot implied_target_method_invocation;
-	implied_target_method_invocation = [method_name]:identifier l_par actual_parameter_list? r_par;
+	function_invocation = {implied_target} basic_function_invocation |
+						{named_target} [target]:identifier dot basic_function_invocation |
+						{expression_target} [target]:primary_expression dot basic_function_invocation |
+						{type_token_target} [target]:type_token dot basic_function_invocation;
+	basic_function_invocation = [function_name]:identifier l_par actual_parameter_list? r_par;
 	actual_parameter_list = {simple} expression |
 							{compound} actual_parameter_list comma expression;
 	
@@ -268,11 +268,11 @@ Productions
 								{type_token_target} type_token dot constructor_invocation;
 	
 	field_access =  {named_target} [target]:identifier dot [field_name]:identifier |
-					{target_expression} [target]:primary_expression dot [field_name]:identifier |
+					{expression_target} [target]:primary_expression dot [field_name]:identifier |
 					{type_token_target} [target]:type_token dot [field_name]:identifier;
 	
 	array_access =  {named_target} [target]:identifier l_bkt [index]:expression r_bkt |
-					{target_expression} [target]:primary_expression l_bkt [index]:expression r_bkt;
+					{expression_target} [target]:primary_expression l_bkt [index]:expression r_bkt;
 	
 	postfix_expression =    {primary} primary_expression |
 							{identifier} identifier |
@@ -288,7 +288,7 @@ Productions
 						{logical_not} emark unary_expression |
 						{postfix} postfix_expression;
 	pre_increment_expression = plus_plus unary_expression;
-	post_increment_expression = minus_minus unary_expression;
+	pre_decrement_expression = minus_minus unary_expression;
 	
 	multiplicative_expression = {unary} unary_expression |
 								{multiplication} multiplicative_expression star unary_expression |
