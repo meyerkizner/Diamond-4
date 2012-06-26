@@ -184,22 +184,18 @@ Productions
 							{for_statement} for_statement_no_short_if |
 							{repeat_statement} repeat_statement_no_short_if;
 	
-	class_declaration = class_token [name]:identifier class_body;
+	class_declaration = [modifiers]:modifier* class_token [name]:identifier class_body;
 	class_body = l_brc class_statement* r_brc;
 	class_statement =   {field} field_declaration |
 						{function} function_declaration |
 						{constructor} constructor_declaration;
 	
-	field_declaration = [modifiers]:field_modifier* [type]:type_token [name]:identifier semi;
-	field_modifier =    {private} private |
-						{static} static;
+	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi;
 	
-	function_declaration = [modifiers]:function_modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block;
-	constructor_declaration = [modifiers]:function_modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block;
+	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block;
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block;
 	formal_parameter_list = {simple} local_declaration |
 							{compound} formal_parameter_list comma local_declaration;
-	function_modifier = {private} private |
-						{static} static;
 	
 	block = l_brc statement* r_brc;
 	
@@ -336,7 +332,7 @@ Productions
 						{identifier} identifier |
 						{field_access} field_access |
 						{array_access} array_access;
-	local_declaration = type_token identifier;
+	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 	assignment_operator =   {assign} assign |
 							{star_assign} star_assign |
 							{slash_assign} slash_assign |
@@ -357,4 +353,7 @@ Productions
 					{long} long |
 					{user_defined} identifier bracket_pair*;
 	bracket_pair = l_bkt r_bkt;
+
+	modifier =  {private} private |
+				{static} static;
 
