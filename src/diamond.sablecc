@@ -19,8 +19,8 @@ Helpers
 	ascii_letter = [0x41..0x5a] | [0x61..0x7a];
 	ascii_digit = [0x30..0x39];
 	
-	diamond_letter = ascii_letter | '$' | '_';
-	diamond_letter_or_digit = ascii_letter | ascii_digit | '$' | '_';
+	identifier_letter = ascii_letter | '$' | '_';
+	identifier_letter_or_digit = ascii_letter | ascii_digit | '$' | '_';
 	
 	non_zero_digit = ['1'..'9'];
 	digit = ['0'..'9'];
@@ -33,6 +33,7 @@ Helpers
 
 
 Tokens
+
 	// separators
 	comma = ',';
 	dot = '.';
@@ -145,13 +146,13 @@ Tokens
 	boolean_literal = true_literal | false_literal;
 	
 	// identifier
-	identifier = diamond_letter diamond_letter_or_digit*;
+	identifier = identifier_letter identifier_letter_or_digit*;
 	
 	// whitespace and comments
 	whitespace = (sp | ht | ff | line_terminator);
 	block_comment = '/*' not_star+ '*'+ (not_star_not_slash not_star* '*'+)* '/';
 	line_comment = '//' input_character* line_terminator?;
-	
+
 
 Ignored Tokens
 
@@ -235,6 +236,7 @@ Productions
 				null_literal;
 
 	method_invocation = implied_target_method_invocation |
+						identifier dot implied_target_method_invocation |
 						primary_expression dot implied_target_method_invocation |
 						type_token dot implied_target_method_invocation;
 	implied_target_method_invocation = identifier l_par (expression (comma expression)*)? r_par
@@ -242,9 +244,12 @@ Productions
 	constructor_invocation =    new l_par (expression (comma expression)*)? r_par |
 								type_token dot constructor_invocation;
 
-	field_access = primary_expression dot identifier | type_token dot identifier;
+	field_access =  identifier dot identifier |
+					primary_expression dot identifier |
+					type_token dot identifier;
 
-	array_access = primary_expression l_bkt primary_expression r_bkt;
+	array_access =  identifier l_bkt expression r_bkt |
+					primary_expression l_bkt expression r_bkt;
 
 	postfix_expression =    primary_expression |
 							identifier |
