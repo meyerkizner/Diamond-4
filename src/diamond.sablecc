@@ -34,7 +34,6 @@ Helpers
 
 Tokens
 	// separators
-	colon = ':';
 	comma = ',';
 	dot = '.';
 	l_bkt = '[';
@@ -56,6 +55,7 @@ Tokens
 	caret = '^';
 	caret_assign = '^=';
 	caret_caret = '^^';
+	colon = ':';
 	emark = '!';
 	eq = '==';
 	gt = '>';
@@ -298,6 +298,18 @@ Productions
 									conditional_xor_expression caret_caret conditional_and_expression;
 	conditional_or_expression =     conditional_xor_expression |
 									conditional_or_expression bar_bar conditional_xor_expression;
+
+	conditional_expression =    conditional_or_expression |
+								conditional_or_expression qmark expression colon conditional_expression;
+
+	assignment_expression = conditional_expression |
+							assignment;
+	assignment = left_hand_side assignment_operator assignment_expression;
+	left_hand_side = local_declaration | identifier | field_access | array_access;
+	local_declaration = type_token identifier;
+	assignment_operator = assign | star_assign | slash_assign | percent_assign | plus_assign | minus_assign | shl_assign | shr_assign | amp_assign | bar_assign | caret_assign;
+
+	expression = assignment_expression;
 
 	type_token = boolean | short | int | long | identifier | type_token l_bkt r_bkt;
 
