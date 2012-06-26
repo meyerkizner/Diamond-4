@@ -262,7 +262,7 @@ Productions
 						post_increment_expression |
 						plus unary_expression |
 						minus unary_expression |
-						emark unary_expression
+						emark unary_expression |
 						postfix_expression;
 	pre_increment_expression = plus_plus unary_expression;
 	post_increment_expression = minus_minus unary_expression;
