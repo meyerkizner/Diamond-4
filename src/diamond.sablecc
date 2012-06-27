@@ -44,6 +44,7 @@ Tokens
 	r_brc = '}';
 	r_par = ')';
 	semi  = ';';
+	bkt_pair = '[]';
 	
 	// operators
 	amp = '&';
@@ -242,8 +243,8 @@ Productions
 							{parenthetical} l_par expression r_par {-> New primary_expression.parenthetical(expression)} |
 							{function_invocation} function_invocation {-> New primary_expression.function_invocation(function_invocation)} |
 							{constructor_invocation} constructor_invocation {-> New primary_expression.constructor_invocation(constructor_invocation)} |
-							{field_access} field_access {-> New primary_expression.field_access(field_access)} |
-							{array_access} array_access {-> New primary_expression.array_access(array_access)};
+							{array_access} array_access {-> New primary_expression.array_access(array_access)} |
+							{qualified_name} qualified_name {-> New primary_expression.qualified_name(qualified_name)};
 	literal =   {integral} integral_literal {-> New literal.integral(integral_literal)} |
 				{string} string_literal {-> New literal.string(string_literal)} |
 				{null} null_literal {-> New literal.null()} |
@@ -254,19 +255,19 @@ Productions
 						{octal} octal_literal {-> New integral_literal.octal(octal_literal)} |
 						{binary} binary_literal {-> New integral_literal.binary(binary_literal)};
 
-	member_access_prefix =  {identifier_member} identifier dot {-> New member_access_prefix.expression(New primary_expression.identifier(identifier))} |
-							{expression_member} primary_expression dot {-> New member_access_prefix.expression(primary_expression)} |
-							{type_token_member} type_token dot {-> New member_access_prefix.type_token(type_token)};
+	qualified_name =    {identifier} [target]:identifier dot [name]:identifier {-> New qualified_name.expression(New primary_expression.identifier(target), name)} |
+						{expression} [target]:primary_expression dot [name]:identifier {-> New qualified_name.expression(target, name)} |
+						{type_token} [target]:type_token dot [name]:identifier {-> New qualified_name.type_token(target, name)};
 	
-	function_invocation = [target]:member_access_prefix? [function_name]:identifier l_par actual_parameter_list? r_par {-> New function_invocation(target, function_name, [actual_parameter_list.expression])};
+	function_invocation =   {unqualified} [function_name]:identifier l_par actual_parameter_list? r_par {-> New function_invocation.unqualified(function_name, [actual_parameter_list.expression])} |
+							{qualified} [function_name]:qualified_name l_par actual_parameter_list? r_par {-> New function_invocation.qualified(function_name, [actual_parameter_list.expression])};
 	constructor_invocation =    {implied_target} new l_par actual_parameter_list? r_par {-> New constructor_invocation(Null, [actual_parameter_list.expression])} |
 								{type_token_target} type_token dot new l_par actual_parameter_list? r_par {-> New constructor_invocation(type_token, [actual_parameter_list.expression])};
 	actual_parameter_list {-> expression*} =    {simple} expression {-> [expression]} |
                                                 {compound} actual_parameter_list comma expression {-> [actual_parameter_list.expression, expression]};
 	
-	field_access =  [target]:member_access_prefix [field_name]:identifier;
-	
-	array_access =  [target]:member_access_prefix? [array_name]:identifier l_bkt [index]:expression r_bkt {-> New array_access(target, array_name, index)};
+	array_access =  {unqualified} [array_name]:identifier l_bkt [index]:expression r_bkt {-> New array_access.unqualified(array_name, index)} |
+					{qualified} [array_name]:qualified_name l_bkt [index]:expression r_bkt {-> New array_access.qualified(array_name, index)};
 	
 	postfix_expression {-> expression} =    {primary} primary_expression {-> New expression.primary(primary_expression)} |
 											{identifier} identifier {-> New expression.primary(New primary_expression.identifier(identifier))} |
@@ -339,7 +340,7 @@ Productions
 					{bar} left_hand_side bar_assign assignment_expression {-> New assignment.bitwise_or(left_hand_side.assignment_target, assignment_expression.expression)};
 	left_hand_side {-> assignment_target} = {local_declaration} local_declaration {-> New assignment_target.local_declaration(local_declaration)} |
 											{identifier} identifier {-> New assignment_target.expression(New primary_expression.identifier(identifier))} |
-											{field_access} field_access {-> New assignment_target.expression(New primary_expression.field_access(field_access))} |
+											{qualified_name} qualified_name {-> New assignment_target.expression(New primary_expression.qualified_name(qualified_name))} |
 											{array_access} array_access {-> New assignment_target.expression(New primary_expression.array_access(array_access))};
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 	
@@ -350,8 +351,7 @@ Productions
 					{int} int {-> New type_token.int(int)} |
 					{long} long {-> New type_token.long(long)} |
 					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
-					{array} [element_type]:type_token bracket_pair* {-> New type_token.array(element_type)};
-	bracket_pair {-> } = l_bkt r_bkt {-> };
+					{array} [element_type]:type_token bkt_pair* {-> New type_token.array(element_type)};
 	modifier =  {private} private {-> New modifier.private()} |
 				{static} static {-> New modifier.static()};
 
@@ -405,11 +405,11 @@ Abstract Syntax Tree
 
 	primary_expression =    {literal} literal |
 							{identifier} identifier |
+							{qualified_name} qualified_name |
 							{this} |
 							{parenthetical} expression |
 							{function_invocation} function_invocation |
 							{constructor_invocation} constructor_invocation |
-							{field_access} field_access |
 							{array_access} array_access;
 	literal =               {integral} integral_literal |
 							{string} string_literal |
@@ -421,12 +421,13 @@ Abstract Syntax Tree
 							{octal} octal_literal |
 							{binary} binary_literal;
 
-	function_invocation = [target]:member_access_prefix? [name]:identifier [parameters]:expression*;
-	constructor_invocation = [target]:type_token? [parameters]:expression*;
-	field_access = [target]:member_access_prefix [field_name]:identifier;
-	array_access = [target]:member_access_prefix? [array_name]:identifier [index]:expression;
-	member_access_prefix =  {expression} primary_expression |
-							{type_token} type_token;
+	function_invocation =       {unqualified} [function_name]:identifier [parameters]:expression* |
+								{qualified} [function_name]:qualified_name [parameters]:expression*;
+	constructor_invocation =    [target]:type_token? [parameters]:expression*;
+	array_access =              {unqualified} [array_name]:identifier [index]:expression |
+								{qualified} [array_name]:qualified_name [index]:expression;
+	qualified_name =            {expression} [target]:primary_expression [name]:identifier |
+								{type_token} [target]:type_token [name]:identifier;
 
 	expression =    {primary} primary_expression |
 					{post_increment} [value]:expression |
