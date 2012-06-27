@@ -28,11 +28,6 @@ Helpers
 	octal_digit = ['0'..'7'];
 	binary_digit = '0' | '1';
 	
-	decimal_numeral = '0' | non_zero_digit digit*;
-	hex_numeral = '0' ('x' | 'X') hex_digit+;
-	octal_numeral = '0' octal_digit+;
-	binary_numeral = '0' ('b' | 'B') binary_digit+;
-	
 	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\\';
 	string_character = [input_character - ['"' + '\']] | escape_sequence;
 
@@ -100,7 +95,7 @@ Tokens
 	delete = 'delete';
 	do = 'do';
 	double = 'double';
-	else = 'else';
+	else_token = 'else';
 	enum = 'enum';
 	extends = 'extends';
 	final = 'final';
@@ -135,7 +130,10 @@ Tokens
 	yield = 'yield';
 	
 	// literals
-	integral_literal = decimal_numeral | hex_numeral | octal_numeral | binary_numeral;
+	decimal_literal = '0' | non_zero_digit digit*;
+    hex_literal = '0' ('x' | 'X') hex_digit+;
+    octal_literal = '0' octal_digit+;
+    binary_literal = '0' ('b' | 'B') binary_digit+;
 	string_literal = '"' string_character* '"';
 	null_literal = 'null';
 	true_literal = 'true';
@@ -160,200 +158,324 @@ Ignored Tokens
 Productions
 	
 	program = top_level_statement*;
-	top_level_statement =   {class} class_declaration |
-							{function} function_declaration |
-							{statement} statement;
-	statement = {standalone_statement} standalone_statement |
-				{if_then_statement} if_then_statement |
-				{if_then_else_statement} if_then_else_statement |
-				{while_statement} while_statement |
-				{for_statement} for_statement |
-				{repeat_statement} repeat_statement;
-	standalone_statement =  {block} block |
-							{empty} empty_statement |
-							{expression} expression_statement |
-							{switch} switch_statement |
-							{do} do_statement |
-							{delete} delete_statement |
-							{break} break_statement |
-							{continue} continue_statement |
-							{return} return_statement;
-	statement_no_short_if = {standalone} standalone_statement |
-							{if_then_else_statement} if_then_else_statement_no_short_if |
-							{while_statement} while_statement_no_short_if |
-							{for_statement} for_statement_no_short_if |
-							{repeat_statement} repeat_statement_no_short_if;
+	top_level_statement =   {class} class_declaration {-> New top_level_statement.class(class_declaration)} |
+							{function} function_declaration {-> New top_level_statement.function(function_declaration)} |
+							{statement} statement {-> New top_level_statement.statement(statement)};
+	statement = {standalone_statement} standalone_statement {-> standalone_statement.statement} |
+				{if_then_statement} if_then_statement {-> New statement.if_then_statement(if_then_statement)} |
+				{if_then_else_statement} if_then_else_statement {-> New statement.if_then_else_statement(if_then_else_statement)} |
+				{while_statement} while_statement {-> New statement.while_statement(while_statement)} |
+				{for_statement} for_statement {-> New statement.for_statement(for_statement)} |
+				{repeat_statement} repeat_statement {-> New statement.repeat_statement(repeat_statement)};
+	standalone_statement {-> statement} =   {block} block {-> New statement.block([block.statement])} |
+											{empty} empty_statement {-> empty_statement.statement} |
+											{expression} expression_statement {-> expression_statement.statement} |
+											{switch} switch_statement {-> New statement.switch_statement(switch_statement)} |
+											{do} do_statement {-> New statement.do_statement(do_statement)} |
+											{delete} delete_statement {-> New statement.delete_statement(delete_statement)} |
+											{break} break_statement {-> New statement.break_statement(break_statement)} |
+											{continue} continue_statement {-> New statement.continue_statement(continue_statement)} |
+											{return} return_statement {-> New statement.return_statement(return_statement)};
+	statement_no_short_if {-> statement} =  {standalone} standalone_statement {-> standalone_statement.statement} |
+											{if_then_else_statement} if_then_else_statement_no_short_if {-> New statement.if_then_else_statement(if_then_else_statement_no_short_if.if_then_else_statement)} |
+											{while_statement} while_statement_no_short_if {-> New statement.while_statement(while_statement_no_short_if.while_statement)} |
+											{for_statement} for_statement_no_short_if {-> New statement.for_statement(for_statement_no_short_if.for_statement)} |
+											{repeat_statement} repeat_statement_no_short_if {-> New statement.repeat_statement(repeat_statement_no_short_if.repeat_statement)};
 	
-	class_declaration = [modifiers]:modifier* class_token [name]:identifier class_body;
-	class_body = l_brc class_statement* r_brc;
+	class_declaration = [modifiers]:modifier* class_token [name]:identifier class_body {-> New class_declaration([modifiers], name, [class_body.class_statement])};
+	class_body {-> class_statement*} = l_brc class_statement* r_brc {-> [class_statement]};
 	class_statement =   {field} field_declaration |
 						{function} function_declaration |
 						{constructor} constructor_declaration;
 	
-	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi;
+	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi {-> New field_declaration([modifiers], type, name)};
 	
-	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block;
-	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block;
-	formal_parameter_list = {simple} local_declaration |
-							{compound} formal_parameter_list comma local_declaration;
+	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], [block.statement])};
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], [block.statement])};
+	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
+													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
 	
-	block = l_brc statement* r_brc;
+	block {-> statement*} = l_brc statement* r_brc {-> [statement]};
 	
-	empty_statement = semi;
+	empty_statement {-> statement} = semi {-> New statement.empty()};
 	
-	expression_statement = statement_expression semi;
-    statement_expression =  {assignment} assignment |
-                            {pre_increment} pre_increment_expression |
-                            {pre_decrement} pre_decrement_expression |
-                            {post_increment} post_increment_expression |
-                            {post_decrement} post_decrement_expression |
-                            {function_invocation} function_invocation |
-                            {constructor_invocation} constructor_invocation;
+	expression_statement {-> statement} =   statement_expression semi {-> New statement.expression_statement(statement_expression.expression)};
+    statement_expression {-> expression} =  {assignment} assignment {-> New expression.assignment(assignment)} |
+				                            {pre_increment} pre_increment_expression {-> pre_increment_expression.expression} |
+				                            {pre_decrement} pre_decrement_expression {-> pre_decrement_expression.expression} |
+				                            {post_increment} post_increment_expression {-> post_increment_expression.expression} |
+				                            {post_decrement} post_decrement_expression {-> post_decrement_expression.expression} |
+				                            {function_invocation} function_invocation {-> New expression.primary(New primary_expression.function_invocation(function_invocation))} |
+				                            {constructor_invocation} constructor_invocation {-> New expression.primary(New primary_expression.constructor_invocation(constructor_invocation))};
 
-	if_then_statement = if l_par [condition]:expression r_par [if_body]:statement;
-	if_then_else_statement = if l_par [condition]:expression r_par [if_body]:statement_no_short_if else [else_body]:statement;
-	if_then_else_statement_no_short_if = if l_par [condition]:expression r_par [if_body]:statement_no_short_if else [else_body]:statement_no_short_if;
+	if_then_statement = if l_par [condition]:expression r_par [then]:statement {-> New if_then_statement(condition, then)};
+	if_then_else_statement = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement {-> New if_then_else_statement(condition, then.statement, else)};
+	if_then_else_statement_no_short_if {-> if_then_else_statement} = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement_no_short_if {-> New if_then_else_statement(condition, then.statement, else.statement)};
 	
-	switch_statement = switch l_par [value]:expression r_par switch_block;
-    switch_block = l_brc switch_labels* r_brc;
-	switch_labels = switch_label+ statement+;
-    switch_label =  case [value]:integral_literal colon |
-                    {default} default colon;
+	switch_statement = switch l_par [value]:expression r_par switch_block {-> New switch_statement(value, [switch_block.case_group])};
+    switch_block {-> case_group*} = l_brc switch_group* r_brc {-> [switch_group.case_group]};
+	switch_group {-> case_group} =  switch_label+ statement+ {-> New case_group([switch_label.integral_literal], [statement])} |
+									{with_default} switch_label+ default colon statement+ {-> New case_group.with_default([switch_label.integral_literal], [statement])};
+    switch_label {-> integral_literal} = case [value]:integral_literal colon {-> value};
 	
-	while_statement = while l_par [condition]:expression r_par statement;
-	while_statement_no_short_if = while l_par [condition]:expression r_par statement_no_short_if;
+	while_statement = while l_par [condition]:expression r_par statement {-> New while_statement(condition, statement)};
+	while_statement_no_short_if {-> while_statement} = while l_par [condition]:expression r_par statement_no_short_if {-> New while_statement(condition, statement_no_short_if.statement)};
 	
-	do_statement = do statement while l_par [condition]:expression r_par semi;
+	do_statement = do statement while l_par [condition]:expression r_par semi {-> New do_statement(statement, condition)};
 	
-    for_statement = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement;
-    for_statement_no_short_if = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if;
+    for_statement = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement {-> New for_statement(init.expression, condition, update.expression, statement)};
+    for_statement_no_short_if {-> for_statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if {-> New for_statement(init.expression, condition, update.expression, statement_no_short_if.statement)};
 	
-    repeat_statement = repeat l_par [repeat_count]:expression r_par statement;
-    repeat_statement_no_short_if = repeat l_par [repeat_count]:expression r_par statement_no_short_if;
+    repeat_statement = repeat l_par [repeat_count]:expression r_par statement {-> New repeat_statement(repeat_count, statement)};
+    repeat_statement_no_short_if {-> repeat_statement} = repeat l_par [repeat_count]:expression r_par statement_no_short_if {-> New repeat_statement(repeat_count, statement_no_short_if.statement)};
 	
-	delete_statement = delete identifier semi;
+	delete_statement = delete identifier semi {-> New delete_statement(identifier)};
 	
-	break_statement = break semi;
+	break_statement = break semi {-> New break_statement()};
 	
-	continue_statement = continue semi;
+	continue_statement = continue semi {-> New continue_statement()};
 	
-	return_statement = return [return_value]:expression? semi;
+	return_statement = return [return_value]:expression? semi {-> New return_statement(return_value)};
 	
+	primary_expression =    {literal} literal {-> New primary_expression.literal(literal)} |
+							{this} this {-> New primary_expression.this()} |
+							{parenthetical} l_par expression r_par {-> New primary_expression.parenthetical(expression)} |
+							{function_invocation} function_invocation {-> New primary_expression.function_invocation(function_invocation)} |
+							{constructor_invocation} constructor_invocation {-> New primary_expression.constructor_invocation(constructor_invocation)} |
+							{field_access} field_access {-> New primary_expression.field_access(field_access)} |
+							{array_access} array_access {-> New primary_expression.array_access(array_access)};
+	literal =   {integral} integral_literal {-> New literal.integral(integral_literal)} |
+				{string} string_literal {-> New literal.string(string_literal)} |
+				{null} null_literal {-> New literal.null()} |
+				{true} true_literal {-> New literal.true()} |
+				{false} false_literal {-> New literal.false()};
+	integral_literal =  {decimal} decimal_literal {-> New integral_literal.decimal(decimal_literal)} |
+						{hex} hex_literal {-> New integral_literal.hex(hex_literal)} |
+						{octal} octal_literal {-> New integral_literal.octal(octal_literal)} |
+						{binary} binary_literal {-> New integral_literal.binary(binary_literal)};
+
+	member_access_prefix =  {identifier_member} identifier dot {-> New member_access_prefix.expression(New primary_expression.identifier(identifier))} |
+							{expression_member} primary_expression dot {-> New member_access_prefix.expression(primary_expression)} |
+							{type_token_member} type_token dot {-> New member_access_prefix.type_token(type_token)};
+	
+	function_invocation = [target]:member_access_prefix? [function_name]:identifier l_par actual_parameter_list? r_par {-> New function_invocation(target, function_name, [actual_parameter_list.expression])};
+	constructor_invocation =    {implied_target} new l_par actual_parameter_list? r_par {-> New constructor_invocation(Null, [actual_parameter_list.expression])} |
+								{type_token_target} type_token dot new l_par actual_parameter_list? r_par {-> New constructor_invocation(type_token, [actual_parameter_list.expression])};
+	actual_parameter_list {-> expression*} =    {simple} expression {-> [expression]} |
+                                                {compound} actual_parameter_list comma expression {-> [actual_parameter_list.expression, expression]};
+	
+	field_access =  [target]:member_access_prefix [field_name]:identifier;
+	
+	array_access =  [target]:member_access_prefix? [array_name]:identifier l_bkt [index]:expression r_bkt {-> New array_access(target, array_name, index)};
+	
+	postfix_expression {-> expression} =    {primary} primary_expression {-> New expression.primary(primary_expression)} |
+											{identifier} identifier {-> New expression.primary(New primary_expression.identifier(identifier))} |
+											{post_increment} post_increment_expression {-> post_increment_expression.expression} |
+											{post_decrement} post_decrement_expression {-> post_decrement_expression.expression};
+	post_increment_expression {-> expression} = postfix_expression plus_plus {-> New expression.post_increment(postfix_expression.expression)};
+	post_decrement_expression {-> expression} = postfix_expression minus_minus {-> New expression.post_decrement(postfix_expression.expression)};
+	
+	unary_expression {-> expression} =  {pre_increment} pre_increment_expression {-> pre_increment_expression.expression} |
+										{pre_decrement} pre_decrement_expression {-> pre_decrement_expression.expression} |
+										{unary_plus} plus unary_expression {-> unary_expression.expression} |
+										{unary_minus} minus unary_expression {-> New expression.numeric_negation(unary_expression.expression)} |
+										{conditional_not} emark unary_expression {-> New expression.conditional_not(unary_expression.expression)} |
+										{postfix} postfix_expression {-> postfix_expression.expression};
+	pre_increment_expression {-> expression} = plus_plus unary_expression {-> New expression.pre_increment(unary_expression.expression)};
+	pre_decrement_expression {-> expression} = minus_minus unary_expression {-> New expression.pre_decrement(unary_expression.expression)};
+	
+	multiplicative_expression {-> expression} = {unary} unary_expression {-> unary_expression.expression} |
+												{multiplication} multiplicative_expression star unary_expression {-> New expression.multiply(multiplicative_expression.expression, unary_expression.expression)} |
+												{division} multiplicative_expression slash unary_expression {-> New expression.divide(multiplicative_expression.expression, unary_expression.expression)} |
+												{modulus} multiplicative_expression percent unary_expression {-> New expression.modulus(multiplicative_expression.expression, unary_expression.expression)};
+	
+	additive_expression {-> expression} =   {multiplicative} multiplicative_expression {-> multiplicative_expression.expression} |
+											{addition} additive_expression plus multiplicative_expression {-> New expression.add(additive_expression.expression, multiplicative_expression.expression)} |
+											{subtraction} additive_expression minus multiplicative_expression {-> New expression.subtract(additive_expression.expression, multiplicative_expression.expression)};
+	
+	shift_expression {-> expression} =  {additive} additive_expression {-> additive_expression.expression} |
+										{shift_left} shift_expression shl additive_expression {-> New expression.shift_left(shift_expression.expression, additive_expression.expression)} |
+										{shift_right} shift_expression shr additive_expression {-> New expression.shift_right(shift_expression.expression, additive_expression.expression)};
+	
+	relational_expression {-> expression} = {shift} shift_expression {-> shift_expression.expression} |
+											{less_than} relational_expression lt shift_expression {-> New expression.less_than(relational_expression.expression, shift_expression.expression)} |
+											{greater_than} relational_expression gt shift_expression {-> New expression.greater_than(relational_expression.expression, shift_expression.expression)} |
+											{less_or_equal} relational_expression lteq shift_expression {-> New expression.less_or_equal(relational_expression.expression, shift_expression.expression)} |
+											{greater_or_equal} relational_expression gteq shift_expression {-> New expression.greater_or_equal(relational_expression.expression, shift_expression.expression)};
+	
+	equality_expression {-> expression} =   {relational} relational_expression {-> relational_expression.expression} |
+											{equal} equality_expression eq relational_expression {-> New expression.equal(equality_expression.expression, relational_expression.expression)} |
+											{not_equal} equality_expression neq relational_expression {-> New expression.not_equal(equality_expression.expression, relational_expression.expression)};
+	
+	bitwise_and_expression {-> expression} =    {equality} equality_expression {-> equality_expression.expression} |
+												{bitwise_and} bitwise_and_expression amp equality_expression {-> New expression.bitwise_and(bitwise_and_expression.expression, equality_expression.expression)};
+	bitwise_xor_expression {-> expression} =    {bitwise_and} bitwise_and_expression {-> bitwise_and_expression.expression} |
+												{bitwise_xor} bitwise_xor_expression caret bitwise_and_expression {-> New expression.bitwise_xor(bitwise_xor_expression.expression, bitwise_and_expression.expression)};
+	bitwise_or_expression {-> expression} =     {bitwise_xor} bitwise_xor_expression {-> bitwise_xor_expression.expression} |
+												{bitwise_or} bitwise_or_expression bar bitwise_xor_expression {-> New expression.bitwise_or(bitwise_or_expression.expression, bitwise_xor_expression.expression)};
+	
+	conditional_and_expression {-> expression} =    {bitwise_or} bitwise_or_expression {-> bitwise_or_expression.expression} |
+													{conditional_and} conditional_and_expression amp_amp bitwise_or_expression {-> New expression.conditional_and(conditional_and_expression.expression, bitwise_or_expression.expression)};
+	conditional_xor_expression {-> expression} =    {conditional_and} conditional_and_expression {-> conditional_and_expression.expression} |
+													{conditional_xor} conditional_xor_expression caret_caret conditional_and_expression {-> New expression.conditional_xor(conditional_xor_expression.expression, conditional_and_expression.expression)};
+	conditional_or_expression {-> expression} =     {conditional_xor} conditional_xor_expression {-> conditional_xor_expression.expression} |
+													{conditional_or} conditional_or_expression bar_bar conditional_xor_expression {-> New expression.conditional_or(conditional_or_expression.expression, conditional_xor_expression.expression)};
+	
+	conditional_expression {-> expression} =    {conditional_or} conditional_or_expression {-> conditional_or_expression.expression} |
+												{conditional} conditional_or_expression qmark expression colon conditional_expression {-> New expression.conditional(conditional_or_expression.expression, expression, conditional_expression.expression)};
+	
+	assignment_expression {-> expression} = {conditional} conditional_expression {-> conditional_expression.expression} |
+											{assignment} assignment {-> New expression.assignment(assignment)};
+	assignment =    left_hand_side assign assignment_expression {-> New assignment(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{star} left_hand_side star_assign assignment_expression {-> New assignment.multiply(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{slash} left_hand_side slash_assign assignment_expression {-> New assignment.divide(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{percent} left_hand_side percent_assign assignment_expression {-> New assignment.modulus(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{plus} left_hand_side plus_assign assignment_expression {-> New assignment.add(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{minus} left_hand_side minus_assign assignment_expression {-> New assignment.subtract(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{shl} left_hand_side shl_assign assignment_expression {-> New assignment.shift_left(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{shr} left_hand_side shr_assign assignment_expression {-> New assignment.shift_right(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{amp} left_hand_side amp_assign assignment_expression {-> New assignment.bitwise_and(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{caret} left_hand_side caret_assign assignment_expression {-> New assignment.bitwise_xor(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{bar} left_hand_side bar_assign assignment_expression {-> New assignment.bitwise_or(left_hand_side.assignment_target, assignment_expression.expression)};
+	left_hand_side {-> assignment_target} = {local_declaration} local_declaration {-> New assignment_target.local_declaration(local_declaration)} |
+											{identifier} identifier {-> New assignment_target.expression(New primary_expression.identifier(identifier))} |
+											{field_access} field_access {-> New assignment_target.expression(New primary_expression.field_access(field_access))} |
+											{array_access} array_access {-> New assignment_target.expression(New primary_expression.array_access(array_access))};
+	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
+	
+	expression = assignment_expression {-> assignment_expression.expression};
+	
+	type_token =    {boolean} boolean {-> New type_token.boolean(boolean)} |
+					{short} short {-> New type_token.short(short)} |
+					{int} int {-> New type_token.int(int)} |
+					{long} long {-> New type_token.long(long)} |
+					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
+					{array} [element_type]:type_token bracket_pair* {-> New type_token.array(element_type)};
+	bracket_pair {-> } = l_bkt r_bkt {-> };
+	modifier =  {private} private {-> New modifier.private()} |
+				{static} static {-> New modifier.static()};
+
+
+Abstract Syntax Tree
+
+	program = top_level_statement*;
+	top_level_statement =   {class} class_declaration |
+							{function} function_declaration |
+							{statement} statement;
+	statement =             {if_then_statement} if_then_statement |
+							{if_then_else_statement} if_then_else_statement |
+							{while_statement} while_statement |
+							{for_statement} for_statement |
+							{repeat_statement} repeat_statement |
+							{do_statement} do_statement |
+							{switch_statement} switch_statement |
+							{delete_statement} delete_statement |
+							{break_statement} break_statement |
+							{continue_statement} continue_statement |
+							{return_statement} return_statement |
+							{expression_statement} expression |
+							{block} statement* |
+							{empty};
+
+	class_declaration = [modifiers]:modifier* [name]:identifier [body]:class_statement*;
+	class_statement =   {field} field_declaration |
+						{function} function_declaration |
+						{constructor} constructor_declaration;
+
+	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
+
+	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier [parameters]:local_declaration* [body]:statement*;
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement*;
+	
+	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
+
+	if_then_statement = [condition]:expression [then]:statement;
+	if_then_else_statement = [condition]:expression [then]:statement [else]:statement;
+	while_statement = [condition]:expression [body]:statement;
+	for_statement = [init]:expression? [condition]:expression? [update]:expression? [body]:statement;
+	repeat_statement = [repeat_count]:expression [body]:statement;
+	do_statement = [body]:statement [condition]:expression;
+	switch_statement = [value]:expression [body]:case_group*;
+	case_group =    [values]:integral_literal+ [body]:statement+ |
+					{with_default} [values]:integral_literal* [body]:statement+;
+	delete_statement = [variable]:identifier;
+	break_statement = ;
+	continue_statement = ;
+	return_statement = [return_value]:expression?;
+
 	primary_expression =    {literal} literal |
-							{this} this |
-							{parenthetical} l_par expression r_par |
+							{identifier} identifier |
+							{this} |
+							{parenthetical} expression |
 							{function_invocation} function_invocation |
 							{constructor_invocation} constructor_invocation |
 							{field_access} field_access |
 							{array_access} array_access;
-	literal =   {integral} integral_literal |
-				{string} string_literal |
-				{null} null_literal |
-				{true} true_literal |
-				{false} false_literal;
+	literal =               {integral} integral_literal |
+							{string} string_literal |
+							{null} |
+							{true} |
+							{false};
+	integral_literal =      {decimal} decimal_literal |
+							{hex} hex_literal |
+							{octal} octal_literal |
+							{binary} binary_literal;
 
-	member_access_prefix =  {identifier_member} identifier dot |
-							{expression_member} primary_expression dot |
-							{type_token_member} type_token dot;
-	
-	function_invocation = [target]:member_access_prefix? basic_function_invocation;
-	basic_function_invocation = [function_name]:identifier l_par actual_parameter_list? r_par;
-	constructor_invocation =    {implied_target} basic_constructor_invocation |
-								{type_token_target} type_token dot basic_constructor_invocation;
-	basic_constructor_invocation = new l_par actual_parameter_list? r_par;
-	actual_parameter_list = {simple} expression |
-                            {compound} actual_parameter_list comma expression;
-	
-	field_access =  [target]:member_access_prefix [field_name]:identifier;
-	
-	array_access =  {named_target} [target]:identifier l_bkt [index]:expression r_bkt |
-					{expression_target} [target]:primary_expression l_bkt [index]:expression r_bkt;
-	
-	postfix_expression =    {primary} primary_expression |
-							{identifier} identifier |
-							{post_increment} post_increment_expression |
-							{post_decrement} post_decrement_expression;
-	post_increment_expression = postfix_expression plus_plus;
-	post_decrement_expression = postfix_expression minus_minus;
-	
-	unary_expression =  {pre_increment} pre_increment_expression |
-						{pre_decrement} post_increment_expression |
-						{unary_plus} plus unary_expression |
-						{unary_minus} minus unary_expression |
-						{logical_not} emark unary_expression |
-						{postfix} postfix_expression;
-	pre_increment_expression = plus_plus unary_expression;
-	pre_decrement_expression = minus_minus unary_expression;
-	
-	multiplicative_expression = {unary} unary_expression |
-								{multiplication} multiplicative_expression star unary_expression |
-								{division} multiplicative_expression slash unary_expression |
-								{modulus} multiplicative_expression percent unary_expression;
-	
-	additive_expression =   {multiplicative} multiplicative_expression |
-							{addition} additive_expression plus multiplicative_expression |
-							{subtraction} additive_expression minus multiplicative_expression;
-	
-	shift_expression =  {additive} additive_expression |
-						{shift_left} shift_expression shl additive_expression |
-						{shift_right} shift_expression shr additive_expression;
-	
-	relational_expression = {shift} shift_expression |
-							{less_than} relational_expression lt shift_expression |
-							{greater_than} relational_expression gt shift_expression |
-							{less_or_equal} relational_expression lteq shift_expression |
-							{greater_or_equal} relational_expression gteq shift_expression;
-	
-	equality_expression =   {relational} relational_expression |
-							{equals} equality_expression eq relational_expression |
-							{not_equals} equality_expression neq relational_expression;
-	
-	bitwise_and_expression =    {equality} equality_expression |
-								{bitwise_and} bitwise_and_expression amp equality_expression;
-	bitwise_xor_expression =    {bitwise_and} bitwise_and_expression |
-								{bitwise_xor} bitwise_xor_expression caret bitwise_and_expression;
-	bitwise_or_expression =     {bitwise_xor} bitwise_xor_expression |
-								{bitwise_or} bitwise_or_expression bar bitwise_xor_expression;
-	
-	conditional_and_expression =    {bitwise_or} bitwise_or_expression |
-									{conditional_and} conditional_and_expression amp_amp bitwise_or_expression;
-	conditional_xor_expression =    {conditional_and} conditional_and_expression |
-									{conditional_xor} conditional_xor_expression caret_caret conditional_and_expression;
-	conditional_or_expression =     {conditional_xor} conditional_xor_expression |
-									{conditional_or} conditional_or_expression bar_bar conditional_xor_expression;
-	
-	conditional_expression =    {conditional_or} conditional_or_expression |
-								{conditional} conditional_or_expression qmark expression colon conditional_expression;
-	
-	assignment_expression = {conditional} conditional_expression |
-							{assignment} assignment;
-	assignment = left_hand_side assignment_operator assignment_expression;
-	left_hand_side =    {local_declaration} local_declaration |
-						{identifier} identifier |
-						{field_access} field_access |
-						{array_access} array_access;
-	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
-	assignment_operator =   {assign} assign |
-							{star_assign} star_assign |
-							{slash_assign} slash_assign |
-							{percent_assign} percent_assign |
-							{plus_assign} plus_assign |
-							{minus_assign} minus_assign |
-							{shl_assign} shl_assign |
-							{shr_assign} shr_assign |
-							{amp_assign} amp_assign |
-							{bar_assign} bar_assign |
-							{caret_assign} caret_assign;
-	
-	expression = assignment_expression;
-	
+	function_invocation = [target]:member_access_prefix? [name]:identifier [parameters]:expression*;
+	constructor_invocation = [target]:type_token? [parameters]:expression*;
+	field_access = [target]:member_access_prefix [field_name]:identifier;
+	array_access = [target]:member_access_prefix? [array_name]:identifier [index]:expression;
+	member_access_prefix =  {expression} primary_expression |
+							{type_token} type_token;
+
+	expression =    {primary} primary_expression |
+					{post_increment} [value]:expression |
+					{post_decrement} [value]:expression |
+					{pre_increment} [value]:expression |
+					{pre_decrement} [value]:expression |
+					{numeric_negation} [value]:expression |
+					{conditional_not} [value]:expression |
+					{multiply} [left]:expression [right]:expression |
+					{divide} [left]:expression [right]:expression |
+					{modulus} [left]:expression [right]:expression |
+					{add} [left]:expression [right]:expression |
+					{subtract} [left]:expression [right]:expression |
+					{shift_left} [left]:expression [right]:expression |
+					{shift_right} [left]:expression [right]:expression |
+					{less_than} [left]:expression [right]:expression |
+					{greater_than} [left]:expression [right]:expression |
+					{less_or_equal} [left]:expression [right]:expression |
+					{greater_or_equal} [left]:expression [right]:expression |
+					{equal} [left]:expression [right]:expression |
+					{not_equal} [left]:expression [right]:expression |
+					{bitwise_and} [left]:expression [right]:expression |
+					{bitwise_xor} [left]:expression [right]:expression |
+					{bitwise_or} [left]:expression [right]:expression |
+					{conditional_and} [left]:expression [right]:expression |
+					{conditional_xor} [left]:expression [right]:expression |
+					{conditional_or} [left]:expression [right]:expression |
+					{conditional} [condition]:expression [if_true]:expression [if_false]:expression |
+					{assignment} assignment;
+	assignment =    [target]:assignment_target [value]:expression |
+					{add} [target]:assignment_target [value]:expression |
+					{subtract} [target]:assignment_target [value]:expression |
+					{multiply} [target]:assignment_target [value]:expression |
+					{divide} [target]:assignment_target [value]:expression |
+					{modulus} [target]:assignment_target [value]:expression |
+					{bitwise_and} [target]:assignment_target [value]:expression |
+					{bitwise_xor} [target]:assignment_target [value]:expression |
+					{bitwise_or} [target]:assignment_target [value]:expression |
+					{shift_left} [target]:assignment_target [value]:expression |
+					{shift_right} [target]:assignment_target [value]:expression;
+	assignment_target = {expression} primary_expression |
+						{local_declaration} local_declaration;
+
 	type_token =    {boolean} boolean |
 					{short} short |
 					{int} int |
 					{long} long |
-					{user_defined} identifier bracket_pair*;
-	bracket_pair = l_bkt r_bkt;
-
-	modifier =  {private} private |
-				{static} static;
+					{user_defined} identifier |
+					{array} [element_type]:type_token;
+	modifier =      {private} |
+					{static};
 
