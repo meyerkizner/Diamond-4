@@ -164,25 +164,25 @@ Productions
 							{function} function_declaration {-> New top_level_statement.function(function_declaration)} |
 							{statement} statement {-> New top_level_statement.statement(statement)};
 	statement = {standalone_statement} standalone_statement {-> standalone_statement.statement} |
-				{if_then_statement} if_then_statement {-> New statement.if_then_statement(if_then_statement)} |
-				{if_then_else_statement} if_then_else_statement {-> New statement.if_then_else_statement(if_then_else_statement)} |
-				{while_statement} while_statement {-> New statement.while_statement(while_statement)} |
-				{for_statement} for_statement {-> New statement.for_statement(for_statement)} |
-				{repeat_statement} repeat_statement {-> New statement.repeat_statement(repeat_statement)};
+				{if_then_statement} if_then_statement {-> if_then_statement.statement} |
+				{if_then_else_statement} if_then_else_statement {-> if_then_else_statement.statement} |
+				{while_statement} while_statement {-> while_statement.statement} |
+				{for_statement} for_statement {-> for_statement.statement} |
+				{repeat_statement} repeat_statement {-> repeat_statement.statement};
 	standalone_statement {-> statement} =   {block} block {-> New statement.block([block.statement])} |
 											{empty} empty_statement {-> empty_statement.statement} |
 											{expression} expression_statement {-> expression_statement.statement} |
-											{switch} switch_statement {-> New statement.switch_statement(switch_statement)} |
-											{do} do_statement {-> New statement.do_statement(do_statement)} |
-											{delete} delete_statement {-> New statement.delete_statement(delete_statement)} |
-											{break} break_statement {-> New statement.break_statement(break_statement)} |
-											{continue} continue_statement {-> New statement.continue_statement(continue_statement)} |
-											{return} return_statement {-> New statement.return_statement(return_statement)};
+											{switch} switch_statement {-> switch_statement.statement} |
+											{do} do_statement {-> do_statement.statement} |
+											{delete} delete_statement {-> delete_statement.statement} |
+											{break} break_statement {-> break_statement.statement} |
+											{continue} continue_statement {-> continue_statement.statement} |
+											{return} return_statement {-> return_statement.statement};
 	statement_no_short_if {-> statement} =  {standalone} standalone_statement {-> standalone_statement.statement} |
-											{if_then_else_statement} if_then_else_statement_no_short_if {-> New statement.if_then_else_statement(if_then_else_statement_no_short_if.if_then_else_statement)} |
-											{while_statement} while_statement_no_short_if {-> New statement.while_statement(while_statement_no_short_if.while_statement)} |
-											{for_statement} for_statement_no_short_if {-> New statement.for_statement(for_statement_no_short_if.for_statement)} |
-											{repeat_statement} repeat_statement_no_short_if {-> New statement.repeat_statement(repeat_statement_no_short_if.repeat_statement)};
+											{if_then_else_statement} if_then_else_statement_no_short_if {-> if_then_else_statement_no_short_if.statement} |
+											{while_statement} while_statement_no_short_if {-> while_statement_no_short_if.statement} |
+											{for_statement} for_statement_no_short_if {-> for_statement_no_short_if.statement} |
+											{repeat_statement} repeat_statement_no_short_if {-> repeat_statement_no_short_if.statement};
 	
 	class_declaration = [modifiers]:modifier* class_token [name]:identifier class_body {-> New class_declaration([modifiers], name, [class_body.class_statement])};
 	class_body {-> class_statement*} = l_brc class_statement* r_brc {-> [class_statement]};
@@ -201,7 +201,7 @@ Productions
 	
 	empty_statement {-> statement} = semi {-> New statement.empty()};
 	
-	expression_statement {-> statement} =   statement_expression semi {-> New statement.expression_statement(statement_expression.expression)};
+	expression_statement {-> statement} =   statement_expression semi {-> New statement.expression(statement_expression.expression)};
     statement_expression {-> expression} =  {assignment} assignment {-> New expression.assignment(assignment)} |
 				                            {pre_increment} pre_increment_expression {-> pre_increment_expression.expression} |
 				                            {pre_decrement} pre_decrement_expression {-> pre_decrement_expression.expression} |
@@ -210,34 +210,34 @@ Productions
 				                            {function_invocation} function_invocation {-> New expression.primary(New primary_expression.function_invocation(function_invocation))} |
 				                            {constructor_invocation} constructor_invocation {-> New expression.primary(New primary_expression.constructor_invocation(constructor_invocation))};
 
-	if_then_statement = if l_par [condition]:expression r_par [then]:statement {-> New if_then_statement(condition, then)};
-	if_then_else_statement = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement {-> New if_then_else_statement(condition, then.statement, else)};
-	if_then_else_statement_no_short_if {-> if_then_else_statement} = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement_no_short_if {-> New if_then_else_statement(condition, then.statement, else.statement)};
+	if_then_statement {-> statement} = if l_par [condition]:expression r_par [then]:statement {-> New statement.if_then(condition, then)};
+	if_then_else_statement {-> statement} = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement {-> New statement.if_then_else(condition, then.statement, else)};
+	if_then_else_statement_no_short_if {-> statement} = if l_par [condition]:expression r_par [then]:statement_no_short_if else_token [else]:statement_no_short_if {-> New statement.if_then_else(condition, then.statement, else.statement)};
 	
-	switch_statement = switch l_par [value]:expression r_par switch_block {-> New switch_statement(value, [switch_block.case_group])};
+	switch_statement {-> statement} = switch l_par [value]:expression r_par switch_block {-> New statement.switch(value, [switch_block.case_group])};
     switch_block {-> case_group*} = l_brc switch_group* r_brc {-> [switch_group.case_group]};
 	switch_group {-> case_group} =  switch_label+ statement+ {-> New case_group([switch_label.integral_literal], [statement])} |
 									{with_default} switch_label+ default colon statement+ {-> New case_group.with_default([switch_label.integral_literal], [statement])};
     switch_label {-> integral_literal} = case [value]:integral_literal colon {-> value};
 	
-	while_statement = while l_par [condition]:expression r_par statement {-> New while_statement(condition, statement)};
-	while_statement_no_short_if {-> while_statement} = while l_par [condition]:expression r_par statement_no_short_if {-> New while_statement(condition, statement_no_short_if.statement)};
+	while_statement {-> statement} = while l_par [condition]:expression r_par statement {-> New statement.while(condition, statement)};
+	while_statement_no_short_if {-> statement} = while l_par [condition]:expression r_par statement_no_short_if {-> New statement.while(condition, statement_no_short_if.statement)};
 	
-	do_statement = do statement while l_par [condition]:expression r_par semi {-> New do_statement(statement, condition)};
+	do_statement {-> statement} = do statement while l_par [condition]:expression r_par semi {-> New statement.do(statement, condition)};
 	
-    for_statement = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement {-> New for_statement(init.expression, condition, update.expression, statement)};
-    for_statement_no_short_if {-> for_statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if {-> New for_statement(init.expression, condition, update.expression, statement_no_short_if.statement)};
+    for_statement {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement {-> New statement.for(init.expression, condition, update.expression, statement)};
+    for_statement_no_short_if {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if {-> New statement.for(init.expression, condition, update.expression, statement_no_short_if.statement)};
 	
-    repeat_statement = repeat l_par [repeat_count]:expression r_par statement {-> New repeat_statement(repeat_count, statement)};
-    repeat_statement_no_short_if {-> repeat_statement} = repeat l_par [repeat_count]:expression r_par statement_no_short_if {-> New repeat_statement(repeat_count, statement_no_short_if.statement)};
+    repeat_statement {-> statement} = repeat l_par [repeat_count]:expression r_par statement {-> New statement.repeat(repeat_count, statement)};
+    repeat_statement_no_short_if {-> statement} = repeat l_par [repeat_count]:expression r_par statement_no_short_if {-> New statement.repeat(repeat_count, statement_no_short_if.statement)};
 	
-	delete_statement = delete identifier semi {-> New delete_statement(identifier)};
+	delete_statement {-> statement} = delete identifier semi {-> New statement.delete(identifier)};
 	
-	break_statement = break semi {-> New break_statement()};
+	break_statement {-> statement} = break semi {-> New statement.break()};
 	
-	continue_statement = continue semi {-> New continue_statement()};
+	continue_statement {-> statement} = continue semi {-> New statement.continue()};
 	
-	return_statement = return [return_value]:expression? semi {-> New return_statement(return_value)};
+	return_statement {-> statement} = return [return_value]:expression? semi {-> New statement.return(return_value)};
 	
 	primary_expression =    {literal} literal {-> New primary_expression.literal(literal)} |
 							{this} this {-> New primary_expression.this()} |
@@ -363,20 +363,22 @@ Abstract Syntax Tree
 	top_level_statement =   {class} class_declaration |
 							{function} function_declaration |
 							{statement} statement;
-	statement =             {if_then_statement} if_then_statement |
-							{if_then_else_statement} if_then_else_statement |
-							{while_statement} while_statement |
-							{for_statement} for_statement |
-							{repeat_statement} repeat_statement |
-							{do_statement} do_statement |
-							{switch_statement} switch_statement |
-							{delete_statement} delete_statement |
-							{break_statement} break_statement |
-							{continue_statement} continue_statement |
-							{return_statement} return_statement |
-							{expression_statement} expression |
+	statement =             {if_then} [condition]:expression [then]:statement |
+							{if_then_else} [condition]:expression [then]:statement [else]:statement |
+							{while} [condition]:expression [body]:statement |
+							{for} [init]:expression? [condition]:expression? [update]:expression? [body]:statement |
+							{repeat} [repeat_count]:expression [body]:statement |
+							{do} [body]:statement [condition]:expression |
+							{switch} [value]:expression [body]:case_group* |
+							{delete} [variable]:identifier |
+							{break} |
+							{continue} |
+							{return} [return_value]:expression? |
+							{expression} expression |
 							{block} statement* |
 							{empty};
+	case_group =            [values]:integral_literal+ [body]:statement+ |
+                            {with_default} [values]:integral_literal* [body]:statement+;
 
 	class_declaration = [modifiers]:modifier* [name]:identifier [body]:class_statement*;
 	class_statement =   {field} field_declaration |
@@ -389,20 +391,6 @@ Abstract Syntax Tree
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement*;
 	
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
-
-	if_then_statement = [condition]:expression [then]:statement;
-	if_then_else_statement = [condition]:expression [then]:statement [else]:statement;
-	while_statement = [condition]:expression [body]:statement;
-	for_statement = [init]:expression? [condition]:expression? [update]:expression? [body]:statement;
-	repeat_statement = [repeat_count]:expression [body]:statement;
-	do_statement = [body]:statement [condition]:expression;
-	switch_statement = [value]:expression [body]:case_group*;
-	case_group =    [values]:integral_literal+ [body]:statement+ |
-					{with_default} [values]:integral_literal* [body]:statement+;
-	delete_statement = [variable]:identifier;
-	break_statement = ;
-	continue_statement = ;
-	return_statement = [return_value]:expression?;
 
 	primary_expression =    {literal} literal |
 							{identifier} identifier |
