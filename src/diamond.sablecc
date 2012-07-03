@@ -45,6 +45,7 @@ Tokens
 	r_par = ')';
 	semi  = ';';
 	bkt_pair = '[]';
+	colon_colon = '::';
 	
 	// operators
 	amp = '&';
@@ -257,12 +258,12 @@ Productions
 
 	qualified_name =    {identifier} [target]:identifier dot [name]:identifier {-> New qualified_name.expression(New primary_expression.identifier(target), name)} |
 						{expression} [target]:primary_expression dot [name]:identifier {-> New qualified_name.expression(target, name)} |
-						{type_token} [target]:type_token dot [name]:identifier {-> New qualified_name.type_token(target, name)};
+						{type_token} [target]:type_token? colon_colon [name]:identifier {-> New qualified_name.type_token(target, name)};
 	
 	function_invocation =   {unqualified} [function_name]:identifier l_par actual_parameter_list? r_par {-> New function_invocation.unqualified(function_name, [actual_parameter_list.expression])} |
 							{qualified} [function_name]:qualified_name l_par actual_parameter_list? r_par {-> New function_invocation.qualified(function_name, [actual_parameter_list.expression])};
 	constructor_invocation =    {implied_target} new l_par actual_parameter_list? r_par {-> New constructor_invocation(Null, [actual_parameter_list.expression])} |
-								{type_token_target} type_token dot new l_par actual_parameter_list? r_par {-> New constructor_invocation(type_token, [actual_parameter_list.expression])};
+								{type_token_target} type_token colon_colon new l_par actual_parameter_list? r_par {-> New constructor_invocation(type_token, [actual_parameter_list.expression])};
 	actual_parameter_list {-> expression*} =    {simple} expression {-> [expression]} |
                                                 {compound} actual_parameter_list comma expression {-> [actual_parameter_list.expression, expression]};
 	
@@ -351,7 +352,7 @@ Productions
 					{int} int {-> New type_token.int(int)} |
 					{long} long {-> New type_token.long(long)} |
 					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
-					{array} [element_type]:type_token bkt_pair* {-> New type_token.array(element_type)};
+					{array} [element_type]:type_token bkt_pair {-> New type_token.array(element_type)};
 	modifier =  {private} private {-> New modifier.private()} |
 				{static} static {-> New modifier.static()};
 
@@ -427,7 +428,7 @@ Abstract Syntax Tree
 	array_access =              {unqualified} [array_name]:identifier [index]:expression |
 								{qualified} [array_name]:qualified_name [index]:expression;
 	qualified_name =            {expression} [target]:primary_expression [name]:identifier |
-								{type_token} [target]:type_token [name]:identifier;
+								{type_token} [target]:type_token? [name]:identifier;
 
 	expression =    {primary} primary_expression |
 					{post_increment} [value]:expression |
