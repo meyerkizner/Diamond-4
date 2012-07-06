@@ -107,6 +107,7 @@ Tokens
 	goto = 'goto';
 	if = 'if';
 	implements = 'implements';
+	include_token = 'include';
 	instanceof = 'instanceof';
 	int = 'int';
 	interface = 'interface';
@@ -162,6 +163,7 @@ Productions
 	program = top_level_statement*;
 	top_level_statement =   {class} class_declaration {-> New top_level_statement.class(class_declaration)} |
 							{function} function_declaration {-> New top_level_statement.function(function_declaration)} |
+							{include} include {-> New top_level_statement.include(include)} |
 							{statement} statement {-> New top_level_statement.statement(statement)};
 	statement = {standalone_statement} standalone_statement {-> standalone_statement.statement} |
 				{if_then_statement} if_then_statement {-> if_then_statement.statement} |
@@ -196,6 +198,8 @@ Productions
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], [block.statement])};
 	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
 													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
+
+	include = include_token [file_name]:string_literal semi {-> New include(file_name)};
 	
 	block {-> statement*} = l_brc statement* r_brc {-> [statement]};
 	
@@ -238,7 +242,7 @@ Productions
 	continue_statement {-> statement} = continue semi {-> New statement.continue()};
 	
 	return_statement {-> statement} = return [return_value]:expression? semi {-> New statement.return(return_value)};
-	
+
 	primary_expression =    {literal} literal {-> New primary_expression.literal(literal)} |
 							{this} this {-> New primary_expression.this()} |
 							{parenthetical} l_par expression r_par {-> New primary_expression.parenthetical(expression)} |
@@ -362,6 +366,7 @@ Abstract Syntax Tree
 	program = top_level_statement*;
 	top_level_statement =   {class} class_declaration |
 							{function} function_declaration |
+							{include} include |
 							{statement} statement;
 	statement =             {if_then} [condition]:expression [then]:statement |
 							{if_then_else} [condition]:expression [then]:statement [else]:statement |
@@ -391,6 +396,8 @@ Abstract Syntax Tree
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement*;
 	
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
+
+	include = [file_name]:string_literal;
 
 	primary_expression =    {literal} literal |
 							{identifier} identifier |
