@@ -1,4 +1,11 @@
-Package com.prealpha.diamond;
+/*
+ * diamond.grammar
+ * Copyright (C) 2012 Pre-Alpha Software
+ * All rights reserved.
+ */
+
+
+Package com.prealpha.diamond.compiler;
 
 
 Helpers
