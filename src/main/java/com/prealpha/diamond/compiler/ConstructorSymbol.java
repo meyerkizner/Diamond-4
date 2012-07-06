@@ -6,8 +6,9 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
@@ -15,16 +16,17 @@ import com.prealpha.diamond.compiler.node.PModifier;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-final class ConstructorSymbol {
+final class ConstructorSymbol implements HasParameters {
     private final AConstructorDeclaration declaration;
 
     private final TIdentifier returnType;
 
-    private final Set<LocalSymbol> parameters;
+    private final List<LocalSymbol> parameters;
 
     private final Set<Modifier> modifiers;
 
@@ -32,7 +34,7 @@ final class ConstructorSymbol {
         checkNotNull(declaration);
         this.declaration = declaration;
         this.returnType = this.declaration.getReturnType();
-        this.parameters = Sets.newHashSet();
+        this.parameters = Lists.newArrayList();
         for (PLocalDeclaration parameterNode : this.declaration.getParameters()) {
             LocalSymbol parameter = new LocalSymbol((ALocalDeclaration) parameterNode);
             this.parameters.add(parameter);
@@ -56,8 +58,9 @@ final class ConstructorSymbol {
         return returnType;
     }
 
-    public Set<LocalSymbol> getParameters() {
-        return ImmutableSet.copyOf(parameters);
+    @Override
+    public List<LocalSymbol> getParameters() {
+        return ImmutableList.copyOf(parameters);
     }
 
     public Set<Modifier> getModifiers() {
