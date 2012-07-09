@@ -203,7 +203,8 @@ Productions
 	
 	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi {-> New field_declaration([modifiers], type, name)};
 	
-	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], [block.statement])};
+	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], [block.statement])} |
+							{void} [modifiers]:modifier* void [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration.void([modifiers], name, [parameters.local_declaration], [block.statement])};
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], [block.statement])};
 	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
 													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
@@ -402,7 +403,8 @@ Abstract Syntax Tree
 
 	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
-	function_declaration = [modifiers]:modifier* [return_type]:type_token [name]:identifier [parameters]:local_declaration* [body]:statement*;
+	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier [parameters]:local_declaration* [body]:statement* |
+							{void} [modifiers]:modifier* [name]:identifier [parameters]:local_declaration* [body]:statement*;
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement*;
 	
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
