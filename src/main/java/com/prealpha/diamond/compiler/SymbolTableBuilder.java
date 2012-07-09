@@ -6,7 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
@@ -20,25 +20,24 @@ import com.prealpha.diamond.compiler.node.Node;
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.base.Preconditions.*;
+
 final class SymbolTableBuilder extends DepthFirstAdapter {
+    private final List<Exception> exceptionBuffer;
+
     private final Map<Node, SymbolTable> scopes;
 
     private SymbolTable current;
 
-    private final List<SemanticException> exceptions;
-
-    public SymbolTableBuilder() {
+    public SymbolTableBuilder(List<Exception> exceptionBuffer) {
+        checkNotNull(exceptionBuffer);
+        this.exceptionBuffer = exceptionBuffer;
         scopes = Maps.newHashMap();
         current = new SymbolTable(null);
-        exceptions = Lists.newArrayList();
     }
 
-    public Map<Node, SymbolTable> getScopes() throws SemanticException {
-        if (exceptions.isEmpty()) {
-            return scopes;
-        } else {
-            throw new SemanticException(exceptions);
-        }
+    public Map<Node, SymbolTable> getScopes() {
+        return ImmutableMap.copyOf(scopes);
     }
 
     @Override
@@ -46,7 +45,7 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
         try {
             current.register(new ClassSymbol(classDeclaration));
         } catch (SemanticException sx) {
-            exceptions.add(sx);
+            exceptionBuffer.add(sx);
         }
         current = new SymbolTable(current);
         scopes.put(classDeclaration, current);
@@ -62,7 +61,7 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
         try {
             current.register(new FunctionSymbol(functionDeclaration));
         } catch (SemanticException sx) {
-            exceptions.add(sx);
+            exceptionBuffer.add(sx);
         }
         current = new SymbolTable(current);
         scopes.put(functionDeclaration, current);
@@ -78,7 +77,7 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
         try {
             current.register(new ConstructorSymbol(constructorDeclaration));
         } catch (SemanticException sx) {
-            exceptions.add(sx);
+            exceptionBuffer.add(sx);
         }
         current = new SymbolTable(current);
         scopes.put(constructorDeclaration, current);
@@ -105,7 +104,7 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
         try {
             current.register(new FieldSymbol(fieldDeclaration));
         } catch (SemanticException sx) {
-            exceptions.add(sx);
+            exceptionBuffer.add(sx);
         }
     }
 
@@ -114,7 +113,7 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
         try {
             current.register(new LocalSymbol(localDeclaration));
         } catch (SemanticException sx) {
-            exceptions.add(sx);
+            exceptionBuffer.add(sx);
         }
     }
 }
