@@ -26,7 +26,13 @@ enum IntegralTypeToken implements TypeToken {
             return false;
         } else {
             IntegralTypeToken integralTarget = (IntegralTypeToken) targetType;
-            return (integralTarget.width >= this.width);
+            if (width % 2 != 0) {
+                // signed types should only widen to other signed types
+                return (integralTarget.width >= this.width) && (integralTarget.width % 2 != 0);
+            } else {
+                // unsigned types can widen to signed ones
+                return (integralTarget.width >= this.width);
+            }
         }
     }
 
