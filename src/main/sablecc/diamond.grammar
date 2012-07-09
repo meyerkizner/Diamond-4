@@ -147,7 +147,6 @@ Tokens
     octal_literal = '0' octal_digit+;
     binary_literal = '0' ('b' | 'B') binary_digit+;
 	string_literal = '"' string_character* '"';
-	null_literal = 'null';
 	true_literal = 'true';
 	false_literal = 'false';
 	
@@ -262,7 +261,6 @@ Productions
 							{qualified_name} qualified_name {-> New primary_expression.qualified_name(qualified_name)};
 	literal =   {integral} integral_literal {-> New literal.integral(integral_literal)} |
 				{string} string_literal {-> New literal.string(string_literal)} |
-				{null} null_literal {-> New literal.null()} |
 				{true} true_literal {-> New literal.true()} |
 				{false} false_literal {-> New literal.false()};
 	integral_literal =  {decimal} decimal_literal {-> New integral_literal.decimal(decimal_literal)} |
@@ -421,7 +419,6 @@ Abstract Syntax Tree
 							{array_access} array_access;
 	literal =               {integral} integral_literal |
 							{string} string_literal |
-							{null} |
 							{true} |
 							{false};
 	integral_literal =      {decimal} decimal_literal |
