@@ -18,4 +18,9 @@ enum BooleanTypeToken implements TypeToken {
     public boolean isAssignableTo(TypeToken targetType) {
         return (targetType == INSTANCE);
     }
+
+    @Override
+    public String toString() {
+        return "boolean";
+    }
 }

@@ -46,4 +46,9 @@ final class UserDefinedTypeToken implements TypeToken {
     public int hashCode() {
         return typeName.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return typeName;
+    }
 }

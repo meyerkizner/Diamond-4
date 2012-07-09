@@ -29,4 +29,9 @@ enum IntegralTypeToken implements TypeToken {
             return (integralTarget.width >= this.width);
         }
     }
+
+    @Override
+    public String toString() {
+        return name().toLowerCase().replace('_', ' ');
+    }
 }

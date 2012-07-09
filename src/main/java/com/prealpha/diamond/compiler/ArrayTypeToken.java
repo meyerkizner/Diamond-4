@@ -46,4 +46,9 @@ final class ArrayTypeToken implements TypeToken {
     public int hashCode() {
         return elementType.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return elementType.toString() + "[]";
+    }
 }
