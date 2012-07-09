@@ -11,18 +11,19 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PModifier;
 import com.prealpha.diamond.compiler.node.PTypeToken;
+import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.*;
-
 final class FunctionSymbol implements HasParameters {
-    private final AFunctionDeclaration declaration;
+    private final PFunctionDeclaration declaration;
 
     private final String name;
 
@@ -33,17 +34,24 @@ final class FunctionSymbol implements HasParameters {
     private final Set<Modifier> modifiers;
 
     FunctionSymbol(AFunctionDeclaration declaration) throws SemanticException {
-        checkNotNull(declaration);
+        this(declaration, declaration.getName(), declaration.getReturnType(), declaration.getParameters(), declaration.getModifiers());
+    }
+
+    FunctionSymbol(AVoidFunctionDeclaration declaration) throws SemanticException {
+        this(declaration, declaration.getName(), null, declaration.getParameters(), declaration.getModifiers());
+    }
+
+    private FunctionSymbol(PFunctionDeclaration declaration, TIdentifier name, PTypeToken returnType, List<PLocalDeclaration> parameters, List<PModifier> modifiers) throws SemanticException {
         this.declaration = declaration;
-        this.name = this.declaration.getName().getText();
-        this.returnType = this.declaration.getReturnType();
+        this.name = name.getText();
+        this.returnType = returnType;
         this.parameters = Lists.newArrayList();
-        for (PLocalDeclaration parameterNode : this.declaration.getParameters()) {
+        for (PLocalDeclaration parameterNode : parameters) {
             LocalSymbol parameter = new LocalSymbol((ALocalDeclaration) parameterNode);
             this.parameters.add(parameter);
         }
         this.modifiers = EnumSet.noneOf(Modifier.class);
-        for (PModifier modifierNode : this.declaration.getModifiers()) {
+        for (PModifier modifierNode : modifiers) {
             Modifier modifier = Modifier.fromNode(modifierNode);
             if (!modifier.modifiesFunctions()) {
                 throw new SemanticException(modifierNode, modifier + " cannot modify " + this.declaration.getClass().getSimpleName());
@@ -53,7 +61,7 @@ final class FunctionSymbol implements HasParameters {
         }
     }
 
-    public AFunctionDeclaration getDeclaration() {
+    public PFunctionDeclaration getDeclaration() {
         return declaration;
     }
 

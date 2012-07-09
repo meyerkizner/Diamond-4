@@ -15,6 +15,7 @@ import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.Node;
 
 import java.util.List;
@@ -69,6 +70,22 @@ final class SymbolTableBuilder extends DepthFirstAdapter {
 
     @Override
     public void outAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
+        current = current.getParent();
+    }
+
+    @Override
+    public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
+        try {
+            current.register(new FunctionSymbol(functionDeclaration));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+        current = new SymbolTable(current);
+        scopes.put(functionDeclaration, current);
+    }
+
+    @Override
+    public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
         current = current.getParent();
     }
 
