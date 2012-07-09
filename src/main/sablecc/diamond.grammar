@@ -331,10 +331,8 @@ Productions
 	
 	conditional_and_expression {-> expression} =    {bitwise_or} bitwise_or_expression {-> bitwise_or_expression.expression} |
 													{conditional_and} conditional_and_expression amp_amp bitwise_or_expression {-> New expression.conditional_and(conditional_and_expression.expression, bitwise_or_expression.expression)};
-	conditional_xor_expression {-> expression} =    {conditional_and} conditional_and_expression {-> conditional_and_expression.expression} |
-													{conditional_xor} conditional_xor_expression caret_caret conditional_and_expression {-> New expression.conditional_xor(conditional_xor_expression.expression, conditional_and_expression.expression)};
-	conditional_or_expression {-> expression} =     {conditional_xor} conditional_xor_expression {-> conditional_xor_expression.expression} |
-													{conditional_or} conditional_or_expression bar_bar conditional_xor_expression {-> New expression.conditional_or(conditional_or_expression.expression, conditional_xor_expression.expression)};
+	conditional_or_expression {-> expression} =     {conditional_xor} conditional_and_expression {-> conditional_and_expression.expression} |
+													{conditional_or} conditional_or_expression bar_bar conditional_and_expression {-> New expression.conditional_or(conditional_or_expression.expression, conditional_and_expression.expression)};
 	
 	conditional_expression {-> expression} =    {conditional_or} conditional_or_expression {-> conditional_or_expression.expression} |
 												{conditional} conditional_or_expression qmark expression colon conditional_expression {-> New expression.conditional(conditional_or_expression.expression, expression, conditional_expression.expression)};
@@ -461,7 +459,6 @@ Abstract Syntax Tree
 					{bitwise_xor} [left]:expression [right]:expression |
 					{bitwise_or} [left]:expression [right]:expression |
 					{conditional_and} [left]:expression [right]:expression |
-					{conditional_xor} [left]:expression [right]:expression |
 					{conditional_or} [left]:expression [right]:expression |
 					{conditional} [condition]:expression [if_true]:expression [if_false]:expression |
 					{assignment} assignment;
