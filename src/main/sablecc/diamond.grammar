@@ -230,7 +230,7 @@ Productions
 	switch_statement {-> statement} = switch l_par [value]:expression r_par switch_block {-> New statement.switch(value, [switch_block.case_group])};
     switch_block {-> case_group*} = l_brc switch_group* r_brc {-> [switch_group.case_group]};
 	switch_group {-> case_group} =  switch_label+ statement+ {-> New case_group([switch_label.integral_literal], [statement])} |
-									{with_default} switch_label+ default colon statement+ {-> New case_group.with_default([switch_label.integral_literal], [statement])};
+									{with_default} [before]:switch_label* default colon [after]:switch_label* statement+ {-> New case_group.with_default([before.integral_literal, after.integral_literal], [statement])};
     switch_label {-> integral_literal} = case [value]:integral_literal colon {-> value};
 	
 	while_statement {-> statement} = while l_par [condition]:expression r_par statement {-> New statement.while(condition, statement)};
