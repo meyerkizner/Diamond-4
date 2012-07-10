@@ -16,7 +16,7 @@ import java.math.BigInteger;
 
 enum IntegralTypeToken implements TypeToken {
     /*
-     * fromNode(PIntegralLiteral) depends on the order, so don't mess with it.
+     * Several methods depend on the order, so don't change it.
      */
     SIGNED_SHORT(15), UNSIGNED_SHORT(16), SIGNED_INT(31), UNSIGNED_INT(32), SIGNED_LONG(63), UNSIGNED_LONG(64);
 
@@ -27,13 +27,13 @@ enum IntegralTypeToken implements TypeToken {
     }
 
     @Override
-    public boolean isIntegral() {
+    public boolean isNumeric() {
         return true;
     }
 
     @Override
     public boolean isAssignableTo(TypeToken targetType) {
-        if (!isIntegral()) {
+        if (!(targetType instanceof IntegralTypeToken)) {
             return false;
         } else {
             IntegralTypeToken integralTarget = (IntegralTypeToken) targetType;
@@ -44,6 +44,27 @@ enum IntegralTypeToken implements TypeToken {
                 // unsigned types can widen to signed ones
                 return (integralTarget.width >= this.width);
             }
+        }
+    }
+
+    @Override
+    public TypeToken performBinaryOperation(TypeToken otherType) throws SemanticException {
+        // go through each type; if both this and other are assignable to that type, return it
+        for (IntegralTypeToken candidate : values()) {
+            if (isAssignableTo(candidate) && otherType.isAssignableTo(candidate)) {
+                return candidate;
+            }
+        }
+        throw new SemanticException(String.format("no type is a valid promotion for both %s and %s", this, otherType));
+    }
+
+    public IntegralTypeToken promoteToSigned() throws SemanticException {
+        if (width % 2 != 0) {
+            return this;
+        } else if ((ordinal() + 1) < values().length) {
+            return values()[ordinal() + 1];
+        } else {
+            throw new SemanticException("unsigned long cannot be promoted to a signed type");
         }
     }
 

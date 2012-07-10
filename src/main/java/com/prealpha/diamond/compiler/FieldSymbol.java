@@ -16,7 +16,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-final class FieldSymbol {
+final class FieldSymbol implements TypedSymbol {
     private final AFieldDeclaration declaration;
 
     private final String name;
@@ -49,6 +49,7 @@ final class FieldSymbol {
         return name;
     }
 
+    @Override
     public PTypeToken getType() {
         return type;
     }

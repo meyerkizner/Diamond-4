@@ -22,7 +22,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-final class FunctionSymbol implements HasParameters {
+final class FunctionSymbol implements ParametrizedSymbol {
     private final PFunctionDeclaration declaration;
 
     private final String name;
@@ -69,6 +69,7 @@ final class FunctionSymbol implements HasParameters {
         return name;
     }
 
+    @Override
     public PTypeToken getReturnType() {
         return returnType;
     }

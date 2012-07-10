@@ -16,7 +16,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
-final class LocalSymbol {
+final class LocalSymbol implements TypedSymbol {
     private final ALocalDeclaration declaration;
 
     private final String name;
@@ -49,6 +49,7 @@ final class LocalSymbol {
         return name;
     }
 
+    @Override
     public PTypeToken getType() {
         return type;
     }

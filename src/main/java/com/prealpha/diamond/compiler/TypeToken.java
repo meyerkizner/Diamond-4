@@ -7,7 +7,9 @@
 package com.prealpha.diamond.compiler;
 
 interface TypeToken {
-    boolean isIntegral();
+    boolean isNumeric();
 
     boolean isAssignableTo(TypeToken targetType);
+
+    TypeToken performBinaryOperation(TypeToken otherType) throws SemanticException;
 }

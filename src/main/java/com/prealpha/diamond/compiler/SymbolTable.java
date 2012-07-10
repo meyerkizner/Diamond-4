@@ -19,10 +19,10 @@ import java.util.List;
 import java.util.Map;
 
 final class SymbolTable {
-    private static final Function<HasParameters, List<PTypeToken>> PARAMETER_TYPES = new Function<HasParameters, List<PTypeToken>>() {
+    private static final Function<ParametrizedSymbol, List<PTypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<PTypeToken>>() {
         @Override
-        public List<PTypeToken> apply(HasParameters hasParameters) {
-            return Lists.transform(hasParameters.getParameters(), new Function<LocalSymbol, PTypeToken>() {
+        public List<PTypeToken> apply(ParametrizedSymbol parametrizedSymbol) {
+            return Lists.transform(parametrizedSymbol.getParameters(), new Function<LocalSymbol, PTypeToken>() {
                 @Override
                 public PTypeToken apply(LocalSymbol input) {
                     return input.getType();

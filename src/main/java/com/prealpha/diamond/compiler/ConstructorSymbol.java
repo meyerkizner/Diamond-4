@@ -11,8 +11,10 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AUserDefinedTypeToken;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PModifier;
+import com.prealpha.diamond.compiler.node.PTypeToken;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.EnumSet;
@@ -21,7 +23,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-final class ConstructorSymbol implements HasParameters {
+final class ConstructorSymbol implements ParametrizedSymbol {
     private final AConstructorDeclaration declaration;
 
     private final TIdentifier returnType;
@@ -54,8 +56,9 @@ final class ConstructorSymbol implements HasParameters {
         return declaration;
     }
 
-    public TIdentifier getReturnType() {
-        return returnType;
+    @Override
+    public PTypeToken getReturnType() {
+        return new AUserDefinedTypeToken(returnType);
     }
 
     @Override

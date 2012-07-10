@@ -21,13 +21,22 @@ final class ArrayTypeToken implements TypeToken {
     }
 
     @Override
-    public boolean isIntegral() {
+    public boolean isNumeric() {
         return false;
     }
 
     @Override
     public boolean isAssignableTo(TypeToken targetType) {
         return equals(targetType);
+    }
+
+    @Override
+    public TypeToken performBinaryOperation(TypeToken otherType) throws SemanticException {
+        if (equals(otherType)) {
+            return this;
+        } else {
+            throw new SemanticException(String.format("invalid binary operation for %s and %s", this, otherType));
+        }
     }
 
     @Override

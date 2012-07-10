@@ -38,6 +38,10 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
         return current;
     }
 
+    protected SymbolTable getSymbols(Node otherScope) {
+        return scopes.get(otherScope);
+    }
+
     @Override
     public void inAClassDeclaration(AClassDeclaration classDeclaration) {
         if (!scopes.containsKey(classDeclaration)) {
