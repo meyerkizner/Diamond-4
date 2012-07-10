@@ -61,6 +61,7 @@ final class FunctionSymbol implements ParametrizedSymbol {
         }
     }
 
+    @Override
     public PFunctionDeclaration getDeclaration() {
         return declaration;
     }
@@ -79,6 +80,7 @@ final class FunctionSymbol implements ParametrizedSymbol {
         return ImmutableList.copyOf(parameters);
     }
 
+    @Override
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }

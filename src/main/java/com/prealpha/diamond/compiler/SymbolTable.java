@@ -7,16 +7,20 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.node.PTypeToken;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class SymbolTable {
     private static final Function<ParametrizedSymbol, List<PTypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<PTypeToken>>() {
@@ -37,7 +41,7 @@ final class SymbolTable {
 
     private final Multimap<String, FunctionSymbol> functionSymbols;
 
-    private final List<ConstructorSymbol> constructorSymbols;
+    private final Set<ConstructorSymbol> constructorSymbols;
 
     private final Map<String, FieldSymbol> fieldSymbols;
 
@@ -47,9 +51,18 @@ final class SymbolTable {
         this.parent = parent;
         classSymbols = Maps.newHashMap();
         functionSymbols = HashMultimap.create();
-        constructorSymbols = Lists.newArrayList();
+        constructorSymbols = Sets.newHashSet();
         fieldSymbols = Maps.newHashMap();
         localSymbols = Maps.newHashMap();
+    }
+
+    SymbolTable(SymbolTable unfiltered, Predicate<Symbol> predicate) {
+        this.parent = unfiltered.parent;
+        classSymbols = Maps.filterValues(unfiltered.classSymbols, predicate);
+        functionSymbols = Multimaps.filterValues(unfiltered.functionSymbols, predicate);
+        constructorSymbols = Sets.filter(unfiltered.constructorSymbols, predicate);
+        fieldSymbols = Maps.filterValues(unfiltered.fieldSymbols, predicate);
+        localSymbols = Maps.filterValues(unfiltered.localSymbols, predicate);
     }
 
     SymbolTable getParent() {
@@ -109,7 +122,7 @@ final class SymbolTable {
 
     public Collection<ConstructorSymbol> resolveConstructor() throws SemanticException {
         if (!constructorSymbols.isEmpty()) {
-            return ImmutableList.copyOf(constructorSymbols);
+            return ImmutableSet.copyOf(constructorSymbols);
         } else if (parent != null) {
             return parent.resolveConstructor();
         } else {

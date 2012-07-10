@@ -15,7 +15,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
-final class ClassSymbol {
+final class ClassSymbol implements Symbol {
     private final AClassDeclaration declaration;
 
     private final String name;
@@ -37,6 +37,7 @@ final class ClassSymbol {
         }
     }
 
+    @Override
     public AClassDeclaration getDeclaration() {
         return declaration;
     }
@@ -45,6 +46,7 @@ final class ClassSymbol {
         return name;
     }
 
+    @Override
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }

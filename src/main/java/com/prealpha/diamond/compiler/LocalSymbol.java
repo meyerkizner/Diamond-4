@@ -41,6 +41,7 @@ final class LocalSymbol implements TypedSymbol {
         }
     }
 
+    @Override
     public ALocalDeclaration getDeclaration() {
         return declaration;
     }
@@ -54,6 +55,7 @@ final class LocalSymbol implements TypedSymbol {
         return type;
     }
 
+    @Override
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }

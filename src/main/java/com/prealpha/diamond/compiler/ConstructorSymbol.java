@@ -52,6 +52,7 @@ final class ConstructorSymbol implements ParametrizedSymbol {
         }
     }
 
+    @Override
     public AConstructorDeclaration getDeclaration() {
         return declaration;
     }
@@ -66,6 +67,7 @@ final class ConstructorSymbol implements ParametrizedSymbol {
         return ImmutableList.copyOf(parameters);
     }
 
+    @Override
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }

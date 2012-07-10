@@ -41,6 +41,7 @@ final class FieldSymbol implements TypedSymbol {
         }
     }
 
+    @Override
     public AFieldDeclaration getDeclaration() {
         return declaration;
     }
@@ -54,6 +55,7 @@ final class FieldSymbol implements TypedSymbol {
         return type;
     }
 
+    @Override
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }
