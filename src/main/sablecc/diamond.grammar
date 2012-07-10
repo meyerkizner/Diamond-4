@@ -90,6 +90,8 @@ Tokens
 	slash_assign = '/=';
 	star = '*';
 	star_assign = '*=';
+	ushr = '>>>';
+    ushr_assign = '>>>=';
 	
 	// keywords
 	abstract = 'abstract';
@@ -309,7 +311,8 @@ Productions
 	
 	shift_expression {-> expression} =  {additive} additive_expression {-> additive_expression.expression} |
 										{shift_left} shift_expression shl additive_expression {-> New expression.shift_left(shift_expression.expression, additive_expression.expression)} |
-										{shift_right} shift_expression shr additive_expression {-> New expression.shift_right(shift_expression.expression, additive_expression.expression)};
+										{shift_right} shift_expression shr additive_expression {-> New expression.shift_right(shift_expression.expression, additive_expression.expression)} |
+										{unsigned_shift_right} shift_expression ushr additive_expression {-> New expression.unsigned_shift_right(shift_expression.expression, additive_expression.expression)};
 	
 	relational_expression {-> expression} = {shift} shift_expression {-> shift_expression.expression} |
 											{less_than} relational_expression lt shift_expression {-> New expression.less_than(relational_expression.expression, shift_expression.expression)} |
@@ -346,6 +349,7 @@ Productions
 					{minus} left_hand_side minus_assign assignment_expression {-> New assignment.subtract(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{shl} left_hand_side shl_assign assignment_expression {-> New assignment.shift_left(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{shr} left_hand_side shr_assign assignment_expression {-> New assignment.shift_right(left_hand_side.assignment_target, assignment_expression.expression)} |
+					{ushr} left_hand_side ushr_assign assignment_expression {-> New assignment.unsigned_shift_right(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{amp} left_hand_side amp_assign assignment_expression {-> New assignment.bitwise_and(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{caret} left_hand_side caret_assign assignment_expression {-> New assignment.bitwise_xor(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{bar} left_hand_side bar_assign assignment_expression {-> New assignment.bitwise_or(left_hand_side.assignment_target, assignment_expression.expression)};
@@ -448,6 +452,7 @@ Abstract Syntax Tree
 					{subtract} [left]:expression [right]:expression |
 					{shift_left} [left]:expression [right]:expression |
 					{shift_right} [left]:expression [right]:expression |
+					{unsigned_shift_right} [left]:expression [right]:expression |
 					{less_than} [left]:expression [right]:expression |
 					{greater_than} [left]:expression [right]:expression |
 					{less_or_equal} [left]:expression [right]:expression |
@@ -471,7 +476,8 @@ Abstract Syntax Tree
 					{bitwise_xor} [target]:assignment_target [value]:expression |
 					{bitwise_or} [target]:assignment_target [value]:expression |
 					{shift_left} [target]:assignment_target [value]:expression |
-					{shift_right} [target]:assignment_target [value]:expression;
+					{shift_right} [target]:assignment_target [value]:expression |
+					{unsigned_shift_right} [target]:assignment_target [value]:expression;
 	assignment_target = {expression} primary_expression |
 						{local_declaration} local_declaration;
 
