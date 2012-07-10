@@ -277,14 +277,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
             PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
             TIdentifier fieldName;
             TypeToken scopeToken;
+            final boolean isStatic;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
                 fieldName = expressionName.getName();
                 scopeToken = types.get(expressionName.getTarget());
+                isStatic = false;
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
                 fieldName = typeName.getName();
                 scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
+                isStatic = true;
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
@@ -292,7 +295,13 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                 SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
                 FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
-                types.put(primaryExpression, TypeTokenUtil.fromNode(fieldSymbol.getType()));
+                if (isStatic == fieldSymbol.getModifiers().contains(Modifier.STATIC)) {
+                    types.put(primaryExpression, TypeTokenUtil.fromNode(fieldSymbol.getType()));
+                } else if (isStatic) {
+                    throw new SemanticException("cannot access an instance field as a static member");
+                } else {
+                    throw new SemanticException("cannot access a static field as an instance member");
+                }
             } else {
                 throw new SemanticException(primaryExpression, "built-in types do not currently support any fields");
             }
