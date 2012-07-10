@@ -6,6 +6,8 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
@@ -350,14 +352,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
             PQualifiedName qualifiedName = invocation.getFunctionName();
             TIdentifier functionName;
             TypeToken scopeToken;
+            final boolean isStatic;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
                 functionName = expressionName.getName();
                 scopeToken = types.get(expressionName.getTarget());
+                isStatic = false;
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
                 functionName = typeName.getName();
                 scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
+                isStatic = true;
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
@@ -365,6 +370,12 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                 SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
                 Collection<FunctionSymbol> symbols = classScope.resolveFunction(functionName.getText());
+                symbols = Collections2.filter(symbols, new Predicate<FunctionSymbol>() {
+                    @Override
+                    public boolean apply(FunctionSymbol input) {
+                        return (isStatic == input.getModifiers().contains(Modifier.STATIC));
+                    }
+                });
                 enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
             } else {
                 throw new SemanticException(invocation, "built-in types do not currently support any methods");
