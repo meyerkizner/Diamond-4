@@ -144,9 +144,31 @@ final class TypeEnforcer extends ScopeAwareWalker {
         }
     }
 
+    private void assertNumericOrBoolean(Node node) {
+        if (!types.containsKey(node)) {
+            if (exceptionBuffer.isEmpty()) {
+                throw new AssertionError("cannot type-check node which was not previously encountered");
+            }
+        } else if (!types.get(node).isNumeric()) {
+            String message = String.format("expected node with type <numeric, boolean>; found %s", types.get(node));
+            exceptionBuffer.add(new SemanticException(node, message));
+        }
+    }
+
     private TypeToken assertBinaryNumeric(Node left, Node right) {
         assertNumeric(left);
         assertNumeric(right);
+        try {
+            return types.get(left).performBinaryOperation(types.get(right));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            return null;
+        }
+    }
+
+    private TypeToken assertBinaryNumericOrBoolean(Node left, Node right) {
+        assertNumericOrBoolean(left);
+        assertNumericOrBoolean(right);
         try {
             return types.get(left).performBinaryOperation(types.get(right));
         } catch (SemanticException sx) {
@@ -654,15 +676,13 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAEqualExpression(AEqualExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
     @Override
     public void outANotEqualExpression(ANotEqualExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
@@ -678,17 +698,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outABitwiseAndExpression(ABitwiseAndExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outABitwiseXorExpression(ABitwiseXorExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outABitwiseOrExpression(ABitwiseOrExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
     }
 
     @Override
@@ -767,21 +787,21 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outABitwiseAndAssignment(ABitwiseAndAssignment assignment) {
         TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
+        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
         types.put(assignment, targetType);
     }
 
     @Override
     public void outABitwiseXorAssignment(ABitwiseXorAssignment assignment) {
         TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
+        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
         types.put(assignment, targetType);
     }
 
     @Override
     public void outABitwiseOrAssignment(ABitwiseOrAssignment assignment) {
         TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
+        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
         types.put(assignment, targetType);
     }
 
