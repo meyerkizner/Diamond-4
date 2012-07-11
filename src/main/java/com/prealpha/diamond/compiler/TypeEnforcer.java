@@ -84,7 +84,9 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
+import com.prealpha.diamond.compiler.node.PTypeToken;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.Collection;
@@ -151,6 +153,22 @@ final class TypeEnforcer extends ScopeAwareWalker {
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
             return null;
+        }
+    }
+
+    private FieldSymbol resolveFieldFromType(TypeToken type, String fieldName, final boolean isStatic) throws SemanticException {
+        if (type instanceof UserDefinedTypeToken) {
+            ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+            SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
+            SymbolTable filteredScope = new SymbolTable(classScope, new Predicate<Symbol>() {
+                @Override
+                public boolean apply(Symbol input) {
+                    return (isStatic == input.getModifiers().contains(Modifier.STATIC));
+                }
+            });
+            return filteredScope.resolveField(fieldName);
+        } else {
+            throw new SemanticException("built-in types do not currently support any fields");
         }
     }
 
@@ -271,40 +289,41 @@ final class TypeEnforcer extends ScopeAwareWalker {
         }
     }
 
+    /**
+     * Resolve qualified name expressions using the following rules:
+     * <ul>
+     *     <li>If qualified with an expression, resolve non-static fields within the scope of the expression type.</li>
+     *     <li>If qualified with a type token, resolve static fields within the scope of the named type.</li>
+     *     <li>If qualified with no target, resolve locals within the global scope.</li>
+     * </ul>
+     *
+     * @param primaryExpression the qualified name expression
+     */
     @Override
     public void outAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
         try {
             PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
-            TIdentifier fieldName;
-            TypeToken scopeToken;
-            final boolean isStatic;
+            TypedSymbol symbol;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                fieldName = expressionName.getName();
-                scopeToken = types.get(expressionName.getTarget());
-                isStatic = false;
+                PPrimaryExpression expression = expressionName.getTarget();
+                TypeToken expressionType = types.get(expression);
+                symbol = resolveFieldFromType(expressionType, expressionName.getName().getText(), false);
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                fieldName = typeName.getName();
-                scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
-                isStatic = true;
-            } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (scopeToken instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
-                SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
-                FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
-                if (isStatic == fieldSymbol.getModifiers().contains(Modifier.STATIC)) {
-                    types.put(primaryExpression, TypeTokenUtil.fromNode(fieldSymbol.getType()));
-                } else if (isStatic) {
-                    throw new SemanticException("cannot access an instance field as a static member");
+                PTypeToken rawTarget = typeName.getTarget();
+                if (rawTarget != null) {
+                    TypeToken target = TypeTokenUtil.fromNode(rawTarget);
+                    symbol = resolveFieldFromType(target, typeName.getName().getText(), true);
                 } else {
-                    throw new SemanticException("cannot access a static field as an instance member");
+                    SymbolTable scope = getSymbols(null);
+                    symbol = scope.resolveLocal(typeName.getName().getText());
                 }
             } else {
-                throw new SemanticException(primaryExpression, "built-in types do not currently support any fields");
+                throw new SemanticException("unknown qualified name flavor");
             }
+            TypeToken type = TypeTokenUtil.fromNode(symbol.getType());
+            types.put(primaryExpression, type);
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
