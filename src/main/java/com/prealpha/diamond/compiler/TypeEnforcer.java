@@ -648,29 +648,25 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outALessThanExpression(ALessThanExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumeric(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
     @Override
     public void outAGreaterThanExpression(AGreaterThanExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumeric(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
     @Override
     public void outALessOrEqualExpression(ALessOrEqualExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumeric(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
     @Override
     public void outAGreaterOrEqualExpression(AGreaterOrEqualExpression expression) {
-        assertNumeric(expression.getLeft());
-        assertNumeric(expression.getRight());
+        assertBinaryNumeric(expression.getLeft(), expression.getRight());
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
