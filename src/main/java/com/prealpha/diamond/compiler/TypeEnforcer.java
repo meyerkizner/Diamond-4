@@ -7,7 +7,6 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
@@ -169,6 +168,22 @@ final class TypeEnforcer extends ScopeAwareWalker {
             return filteredScope.resolveField(fieldName);
         } else {
             throw new SemanticException("built-in types do not currently support any fields");
+        }
+    }
+
+    private Collection<FunctionSymbol> resolveFunctionFromType(TypeToken type, String functionName, final boolean isStatic) throws SemanticException {
+        if (type instanceof UserDefinedTypeToken) {
+            ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+            SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
+            SymbolTable filteredScope = new SymbolTable(classScope, new Predicate<Symbol>() {
+                @Override
+                public boolean apply(Symbol input) {
+                    return (isStatic == input.getModifiers().contains(Modifier.STATIC));
+                }
+            });
+            return filteredScope.resolveFunction(functionName);
+        } else {
+            throw new SemanticException("built-in types do not currently support any functions");
         }
     }
 
@@ -374,40 +389,40 @@ final class TypeEnforcer extends ScopeAwareWalker {
         }
     }
 
+    /**
+     * Resolve qualified function invocations using the following rules:
+     * <ul>
+     *     <li>If qualified with an expression, resolve non-static functions within the scope of the expression type.</li>
+     *     <li>If qualified with a type token, resolve static functions within the scope of the named type.</li>
+     *     <li>If qualified with no target, resolve functions within the global scope.</li>
+     * </ul>
+     *
+     * @param invocation the qualified function invocation
+     */
     @Override
     public void outAQualifiedFunctionInvocation(AQualifiedFunctionInvocation invocation) {
         try {
             PQualifiedName qualifiedName = invocation.getFunctionName();
-            TIdentifier functionName;
-            TypeToken scopeToken;
-            final boolean isStatic;
+            Collection<FunctionSymbol> symbols;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                functionName = expressionName.getName();
-                scopeToken = types.get(expressionName.getTarget());
-                isStatic = false;
+                PPrimaryExpression expression = expressionName.getTarget();
+                TypeToken expressionType = types.get(expression);
+                symbols = resolveFunctionFromType(expressionType, expressionName.getName().getText(), false);
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                functionName = typeName.getName();
-                scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
-                isStatic = true;
+                PTypeToken rawTarget = typeName.getTarget();
+                if (rawTarget != null) {
+                    TypeToken target = TypeTokenUtil.fromNode(rawTarget);
+                    symbols = resolveFunctionFromType(target, typeName.getName().getText(), true);
+                } else {
+                    SymbolTable scope = getSymbols(null);
+                    symbols = scope.resolveFunction(typeName.getName().getText());
+                }
             } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
+                throw new SemanticException("unknown qualified name flavor");
             }
-            if (scopeToken instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
-                SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
-                Collection<FunctionSymbol> symbols = classScope.resolveFunction(functionName.getText());
-                symbols = Collections2.filter(symbols, new Predicate<FunctionSymbol>() {
-                    @Override
-                    public boolean apply(FunctionSymbol input) {
-                        return (isStatic == input.getModifiers().contains(Modifier.STATIC));
-                    }
-                });
-                enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
-            } else {
-                throw new SemanticException(invocation, "built-in types do not currently support any methods");
-            }
+            enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
