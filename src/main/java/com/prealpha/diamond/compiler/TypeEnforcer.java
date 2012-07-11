@@ -14,6 +14,7 @@ import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseAndAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseAndExpression;
+import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseOrAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseXorAssignment;
@@ -597,6 +598,12 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAConditionalNotExpression(AConditionalNotExpression expression) {
         assertAssignableTo(expression.getValue(), BooleanTypeToken.INSTANCE);
+        types.put(expression, types.get(expression.getValue()));
+    }
+
+    @Override
+    public void outABitwiseComplementExpression(ABitwiseComplementExpression expression) {
+        assertNumeric(expression.getValue());
         types.put(expression, types.get(expression.getValue()));
     }
 

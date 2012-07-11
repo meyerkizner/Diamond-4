@@ -92,6 +92,7 @@ Tokens
 	slash_assign = '/=';
 	star = '*';
 	star_assign = '*=';
+	tilde = '~';
 	ushr = '>>>';
     ushr_assign = '>>>=';
 	
@@ -298,6 +299,7 @@ Productions
 										{unary_plus} plus unary_expression {-> unary_expression.expression} |
 										{unary_minus} minus unary_expression {-> New expression.numeric_negation(unary_expression.expression)} |
 										{conditional_not} emark unary_expression {-> New expression.conditional_not(unary_expression.expression)} |
+										{bitwise_complement} tilde unary_expression {-> New expression.bitwise_complement(unary_expression.expression)} |
 										{postfix} postfix_expression {-> postfix_expression.expression};
 	pre_increment_expression {-> expression} = plus_plus unary_expression {-> New expression.pre_increment(unary_expression.expression)};
 	pre_decrement_expression {-> expression} = minus_minus unary_expression {-> New expression.pre_decrement(unary_expression.expression)};
@@ -449,6 +451,7 @@ Abstract Syntax Tree
 					{pre_decrement} [value]:expression |
 					{numeric_negation} [value]:expression |
 					{conditional_not} [value]:expression |
+					{bitwise_complement} [value]:expression |
 					{multiply} [left]:expression [right]:expression |
 					{divide} [left]:expression [right]:expression |
 					{modulus} [left]:expression [right]:expression |
