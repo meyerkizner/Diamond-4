@@ -335,7 +335,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     symbol = scope.resolveLocal(typeName.getName().getText());
                 }
             } else {
-                throw new SemanticException("unknown qualified name flavor");
+                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
             TypeToken type = TypeTokenUtil.fromNode(symbol.getType());
             types.put(primaryExpression, type);
@@ -420,7 +420,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     symbols = scope.resolveFunction(typeName.getName().getText());
                 }
             } else {
-                throw new SemanticException("unknown qualified name flavor");
+                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
             enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
         } catch (SemanticException sx) {
