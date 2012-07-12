@@ -27,8 +27,22 @@ enum IntegralTypeToken implements TypeToken {
     }
 
     @Override
+    public boolean isReference() {
+        return false;
+    }
+
+    @Override
     public boolean isNumeric() {
         return true;
+    }
+
+    @Override
+    public int getWidth() {
+        if (width % 2 == 0) {
+            return width / 16;
+        } else {
+            return (width + 1) / 16;
+        }
     }
 
     @Override

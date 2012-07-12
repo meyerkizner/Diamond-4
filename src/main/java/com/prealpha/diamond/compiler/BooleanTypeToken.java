@@ -10,8 +10,18 @@ enum BooleanTypeToken implements TypeToken {
     INSTANCE;
 
     @Override
+    public boolean isReference() {
+        return false;
+    }
+
+    @Override
     public boolean isNumeric() {
         return false;
+    }
+
+    @Override
+    public int getWidth() {
+        return 1;
     }
 
     @Override
