@@ -98,7 +98,7 @@ enum IntegralTypeToken implements TypeToken {
         } else if (node instanceof ABinaryIntegralLiteral) {
             value = new BigInteger(((ABinaryIntegralLiteral) node).getBinaryLiteral().getText().substring(2), 2);
         } else {
-            throw new UnsupportedOperationException("unknown integral literal flavor");
+            throw new SemanticException(node, "unknown integral literal flavor");
         }
         for (IntegralTypeToken type : values()) {
             if (value.getLowestSetBit() <= type.width) {
