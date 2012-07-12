@@ -13,6 +13,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
@@ -108,14 +109,6 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outAForStatement(AForStatement statement) {
-        // if the init statement declares a local, we need to know now and put it on the stack
-        for (LocalSymbol initLocal : getScope().getLocals()) {
-            declareLocal(statement, initLocal);
-        }
-        assert (getScope().getLocals().size() <= 1);
-
-        // ok, now whatever expression was in the init is free to run and put its result on the stack
-        // (glad we don't allow multiple locals to be declared!)
         inline(statement, statement.getInit());
 
         // use a pseudo-local to evaluate the condition
@@ -140,6 +133,26 @@ final class CodeGenerator extends ScopeAwareWalker {
         for (LocalSymbol initLocal : Lists.reverse(getScope().getLocals())) {
             reclaimLocal(statement, initLocal);
         }
+    }
+
+    @Override
+    public void outADoStatement(ADoStatement statement) {
+        // we'll be smart and make the pseudo-local now, since we're almost certainly going to need it
+        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, pseudoLocal);
+
+        // to make break and continue work, we actually have to have the condition first, and then jump around a bit
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
+
+        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
+        inline(statement, statement.getCondition());
+        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
+
+        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
+        inline(statement, statement.getBody());
+
+        reclaimLocal(statement, pseudoLocal);
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
