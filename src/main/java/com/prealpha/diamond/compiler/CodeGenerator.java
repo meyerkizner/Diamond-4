@@ -16,7 +16,6 @@ import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
-import com.prealpha.diamond.compiler.node.ARepeatStatement;
 import com.prealpha.diamond.compiler.node.AStatementTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;

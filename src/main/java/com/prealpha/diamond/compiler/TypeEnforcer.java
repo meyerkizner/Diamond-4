@@ -61,7 +61,6 @@ import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
-import com.prealpha.diamond.compiler.node.ARepeatStatement;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
@@ -229,11 +228,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAForStatement(AForStatement forStatement) {
         assertAssignableTo(forStatement.getCondition(), BooleanTypeToken.INSTANCE);
         super.outAForStatement(forStatement);
-    }
-
-    @Override
-    public void outARepeatStatement(ARepeatStatement repeatStatement) {
-        assertAssignableTo(repeatStatement.getRepeatCount(), IntegralTypeToken.UNSIGNED_LONG);
     }
 
     @Override

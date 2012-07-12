@@ -129,7 +129,6 @@ Tokens
 	private = 'private';
 	protected = 'protected';
 	raise = 'raise';
-	repeat = 'repeat';
 	return = 'return';
 	short = 'short';
 	signed = 'signed';
@@ -182,8 +181,7 @@ Productions
 				{if_then_statement} if_then_statement {-> if_then_statement.statement} |
 				{if_then_else_statement} if_then_else_statement {-> if_then_else_statement.statement} |
 				{while_statement} while_statement {-> while_statement.statement} |
-				{for_statement} for_statement {-> for_statement.statement} |
-				{repeat_statement} repeat_statement {-> repeat_statement.statement};
+				{for_statement} for_statement {-> for_statement.statement};
 	standalone_statement {-> statement} =   {block} block {-> New statement.block([block.statement])} |
 											{empty} empty_statement {-> empty_statement.statement} |
 											{expression} expression_statement {-> expression_statement.statement} |
@@ -196,8 +194,7 @@ Productions
 	statement_no_short_if {-> statement} =  {standalone} standalone_statement {-> standalone_statement.statement} |
 											{if_then_else_statement} if_then_else_statement_no_short_if {-> if_then_else_statement_no_short_if.statement} |
 											{while_statement} while_statement_no_short_if {-> while_statement_no_short_if.statement} |
-											{for_statement} for_statement_no_short_if {-> for_statement_no_short_if.statement} |
-											{repeat_statement} repeat_statement_no_short_if {-> repeat_statement_no_short_if.statement};
+											{for_statement} for_statement_no_short_if {-> for_statement_no_short_if.statement};
 	
 	class_declaration = [modifiers]:modifier* class_token [name]:identifier class_body {-> New class_declaration([modifiers], name, [class_body.class_statement])};
 	class_body {-> class_statement*} = l_brc class_statement* r_brc {-> [class_statement]};
@@ -246,10 +243,7 @@ Productions
     for_statement {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement {-> New statement.for(init.expression, condition, update.expression, statement)};
     for_statement_no_short_if {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if {-> New statement.for(init.expression, condition, update.expression, statement_no_short_if.statement)};
 	
-    repeat_statement {-> statement} = repeat l_par [repeat_count]:expression r_par statement {-> New statement.repeat(repeat_count, statement)};
-    repeat_statement_no_short_if {-> statement} = repeat l_par [repeat_count]:expression r_par statement_no_short_if {-> New statement.repeat(repeat_count, statement_no_short_if.statement)};
-	
-	delete_statement {-> statement} = delete identifier semi {-> New statement.delete(identifier)};
+    delete_statement {-> statement} = delete identifier semi {-> New statement.delete(identifier)};
 	
 	break_statement {-> statement} = break semi {-> New statement.break()};
 	
@@ -391,7 +385,6 @@ Abstract Syntax Tree
 							{if_then_else} [condition]:expression [then]:statement [else]:statement |
 							{while} [condition]:expression [body]:statement |
 							{for} [init]:expression? [condition]:expression? [update]:expression? [body]:statement |
-							{repeat} [repeat_count]:expression [body]:statement |
 							{do} [body]:statement [condition]:expression |
 							{switch} [value]:expression [body]:case_group* |
 							{delete} [variable]:identifier |
