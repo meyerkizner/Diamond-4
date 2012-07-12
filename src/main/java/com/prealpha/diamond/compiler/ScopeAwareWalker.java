@@ -18,6 +18,24 @@ import com.prealpha.diamond.compiler.node.Node;
 
 import java.util.Map;
 
+/**
+ * <p>
+ *     A syntax tree walker which creates and keeps track of {@link Scope} instances corresponding to nodes in the tree,
+ *     adding symbols to these instances as they are declared. The current scope is accessible using
+ *     {@link #getScope()}, and the scope for an arbitrary (already-visited) node can be located using
+ *     {@link #getScope(Node)}. In addition, a new {@code ScopeAwareWalker} may make use of the scope information
+ *     collected by a previous walker using the {@link #ScopeAwareWalker(ScopeAwareWalker)} constructor, which makes the
+ *     scope information stored in the new walker unmodifiable.
+ * </p>
+ * <p>
+ *     If subclasses override any of the methods of this class, they should be careful to invoke the superclass method
+ *     at an appropriate point in their own implementation, to avoid corrupting the scope information stored in this
+ *     class.
+ * </p>
+ *
+ * @author Meyer Kizner
+ *
+ */
 abstract class ScopeAwareWalker extends DepthFirstAdapter {
     private final Map<Node, Scope> scopes;
 
@@ -34,86 +52,74 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
         current = scopes.get(null);
     }
 
-    protected Scope getScope() {
+    protected final Scope getScope() {
         return current;
     }
 
-    protected Scope getScope(Node otherScope) {
-        return scopes.get(otherScope);
+    protected final Scope getScope(Node scopeKey) {
+        return scopes.get(scopeKey);
+    }
+
+    protected void onEnterScope(Node scopeKey) {
+        if (!scopes.containsKey(scopeKey)) {
+            current = new Scope(current);
+            scopes.put(scopeKey, current);
+        } else {
+            current = scopes.get(scopeKey);
+        }
+    }
+
+    protected void onExitScope(Node scopeKey) {
+        current = current.getParent();
     }
 
     @Override
     public void inAClassDeclaration(AClassDeclaration classDeclaration) {
-        if (!scopes.containsKey(classDeclaration)) {
-            current = new Scope(current);
-            scopes.put(classDeclaration, current);
-        } else {
-            current = scopes.get(classDeclaration);
-        }
+        onEnterScope(classDeclaration);
     }
 
     @Override
     public void outAClassDeclaration(AClassDeclaration classDeclaration) {
-        current = current.getParent();
+        onExitScope(classDeclaration);
     }
 
     @Override
     public void inAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
-        if (!scopes.containsKey(functionDeclaration)) {
-            current = new Scope(current);
-            scopes.put(functionDeclaration, current);
-        } else {
-            current = scopes.get(functionDeclaration);
-        }
+        onEnterScope(functionDeclaration);
     }
 
     @Override
     public void outAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
-        current = current.getParent();
+        onExitScope(functionDeclaration);
     }
 
     @Override
     public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
-        if (!scopes.containsKey(functionDeclaration)) {
-            current = new Scope(current);
-            scopes.put(functionDeclaration, current);
-        } else {
-            current = scopes.get(functionDeclaration);
-        }
+        onEnterScope(functionDeclaration);
     }
 
     @Override
     public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
-        current = current.getParent();
+        onExitScope(functionDeclaration);
     }
 
     @Override
     public void inAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
-        if (!scopes.containsKey(constructorDeclaration)) {
-            current = new Scope(current);
-            scopes.put(constructorDeclaration, current);
-        } else {
-            current = scopes.get(constructorDeclaration);
-        }
+        onEnterScope(constructorDeclaration);
     }
 
     @Override
     public void outAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
-        current = current.getParent();
+        onExitScope(constructorDeclaration);
     }
 
     @Override
     public void inABlockStatement(ABlockStatement blockStatement) {
-        if (!scopes.containsKey(blockStatement)) {
-            current = new Scope(current);
-            scopes.put(blockStatement, current);
-        } else {
-            current = scopes.get(blockStatement);
-        }
+        onEnterScope(blockStatement);
     }
 
     @Override
     public void outABlockStatement(ABlockStatement blockStatement) {
-        current = current.getParent();
+        onExitScope(blockStatement);
     }
 }
