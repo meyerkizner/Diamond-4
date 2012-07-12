@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class SymbolTable {
+final class Scope {
     private static final Function<ParametrizedSymbol, List<TypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<TypeToken>>() {
         @Override
         public List<TypeToken> apply(ParametrizedSymbol parametrizedSymbol) {
@@ -34,7 +34,7 @@ final class SymbolTable {
         }
     };
 
-    private final SymbolTable parent;
+    private final Scope parent;
 
     private final Map<String, ClassSymbol> classSymbols;
 
@@ -46,7 +46,7 @@ final class SymbolTable {
 
     private final Map<String, LocalSymbol> localSymbols;
 
-    SymbolTable(SymbolTable parent) {
+    Scope(Scope parent) {
         this.parent = parent;
         classSymbols = Maps.newHashMap();
         functionSymbols = HashMultimap.create();
@@ -55,7 +55,7 @@ final class SymbolTable {
         localSymbols = Maps.newHashMap();
     }
 
-    SymbolTable(SymbolTable unfiltered, Predicate<Symbol> predicate) {
+    Scope(Scope unfiltered, Predicate<Symbol> predicate) {
         this.parent = unfiltered.parent;
         classSymbols = Maps.filterValues(unfiltered.classSymbols, predicate);
         functionSymbols = Multimaps.filterValues(unfiltered.functionSymbols, predicate);
@@ -64,7 +64,7 @@ final class SymbolTable {
         localSymbols = Maps.filterValues(unfiltered.localSymbols, predicate);
     }
 
-    SymbolTable getParent() {
+    Scope getParent() {
         return parent;
     }
 

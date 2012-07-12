@@ -180,9 +180,9 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private FieldSymbol resolveFieldFromType(TypeToken type, String fieldName, final boolean isStatic) throws SemanticException {
         if (type instanceof UserDefinedTypeToken) {
-            ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-            SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
-            SymbolTable filteredScope = new SymbolTable(classScope, new Predicate<Symbol>() {
+            ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+            Scope classScope = getScope(classSymbol.getDeclaration());
+            Scope filteredScope = new Scope(classScope, new Predicate<Symbol>() {
                 @Override
                 public boolean apply(Symbol input) {
                     return (isStatic == input.getModifiers().contains(Modifier.STATIC));
@@ -196,9 +196,9 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private Collection<FunctionSymbol> resolveFunctionFromType(TypeToken type, String functionName, final boolean isStatic) throws SemanticException {
         if (type instanceof UserDefinedTypeToken) {
-            ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-            SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
-            SymbolTable filteredScope = new SymbolTable(classScope, new Predicate<Symbol>() {
+            ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+            Scope classScope = getScope(classSymbol.getDeclaration());
+            Scope filteredScope = new Scope(classScope, new Predicate<Symbol>() {
                 @Override
                 public boolean apply(Symbol input) {
                     return (isStatic == input.getModifiers().contains(Modifier.STATIC));
@@ -316,10 +316,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
         try {
             try {
-                LocalSymbol localSymbol = getSymbols().resolveLocal(primaryExpression.getIdentifier().getText());
+                LocalSymbol localSymbol = getScope().resolveLocal(primaryExpression.getIdentifier().getText());
                 types.put(primaryExpression, localSymbol.getType());
             } catch (SemanticException sx) {
-                FieldSymbol fieldSymbol = getSymbols().resolveField(primaryExpression.getIdentifier().getText());
+                FieldSymbol fieldSymbol = getScope().resolveField(primaryExpression.getIdentifier().getText());
                 types.put(primaryExpression, fieldSymbol.getType());
             }
         } catch (SemanticException sx) {
@@ -354,7 +354,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     TypeToken target = TypeTokenUtil.fromNode(rawTarget);
                     symbol = resolveFieldFromType(target, typeName.getName().getText(), true);
                 } else {
-                    SymbolTable scope = getSymbols(null);
+                    Scope scope = getScope(null);
                     symbol = scope.resolveLocal(typeName.getName().getText());
                 }
             } else {
@@ -404,7 +404,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation invocation) {
         try {
-            Collection<FunctionSymbol> symbols = getSymbols().resolveFunction(invocation.getFunctionName().getText());
+            Collection<FunctionSymbol> symbols = getScope().resolveFunction(invocation.getFunctionName().getText());
             enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -438,7 +438,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     TypeToken target = TypeTokenUtil.fromNode(rawTarget);
                     symbols = resolveFunctionFromType(target, typeName.getName().getText(), true);
                 } else {
-                    SymbolTable scope = getSymbols(null);
+                    Scope scope = getScope(null);
                     symbols = scope.resolveFunction(typeName.getName().getText());
                 }
             } else {
@@ -453,17 +453,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAConstructorInvocation(AConstructorInvocation invocation) {
         try {
-            SymbolTable scope;
+            Scope scope;
             if (invocation.getTarget() != null) {
                 TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
                 if (scopeToken instanceof UserDefinedTypeToken) {
-                    ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
-                    scope = getSymbols(classSymbol.getDeclaration());
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
                 } else {
                     throw new SemanticException(invocation, "built-in types do not currently support any constructors");
                 }
             } else {
-                scope = getSymbols();
+                scope = getScope();
             }
             Collection<ConstructorSymbol> symbols = scope.resolveConstructor();
             enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
@@ -503,10 +503,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
         assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
         try {
             try {
-                LocalSymbol localSymbol = getSymbols().resolveLocal(arrayAccess.getArrayName().getText());
+                LocalSymbol localSymbol = getScope().resolveLocal(arrayAccess.getArrayName().getText());
                 enforceArrayAccess(arrayAccess, localSymbol);
             } catch (SemanticException sx) {
-                FieldSymbol fieldSymbol = getSymbols().resolveField(arrayAccess.getArrayName().getText());
+                FieldSymbol fieldSymbol = getScope().resolveField(arrayAccess.getArrayName().getText());
                 enforceArrayAccess(arrayAccess, fieldSymbol);
             }
         } catch (SemanticException sx) {
@@ -533,8 +533,8 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
             if (scopeToken instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getSymbols().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
-                SymbolTable classScope = getSymbols(classSymbol.getDeclaration());
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
                 enforceArrayAccess(arrayAccess, fieldSymbol);
             } else {

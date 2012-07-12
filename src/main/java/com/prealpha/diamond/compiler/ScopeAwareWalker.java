@@ -19,13 +19,13 @@ import com.prealpha.diamond.compiler.node.Node;
 import java.util.Map;
 
 abstract class ScopeAwareWalker extends DepthFirstAdapter {
-    private final Map<Node, SymbolTable> scopes;
+    private final Map<Node, Scope> scopes;
 
-    private SymbolTable current;
+    private Scope current;
 
     protected ScopeAwareWalker() {
         scopes = Maps.newHashMap();
-        current = new SymbolTable(null);
+        current = new Scope(null);
         scopes.put(null, current);
     }
 
@@ -34,18 +34,18 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
         current = scopes.get(null);
     }
 
-    protected SymbolTable getSymbols() {
+    protected Scope getScope() {
         return current;
     }
 
-    protected SymbolTable getSymbols(Node otherScope) {
+    protected Scope getScope(Node otherScope) {
         return scopes.get(otherScope);
     }
 
     @Override
     public void inAClassDeclaration(AClassDeclaration classDeclaration) {
         if (!scopes.containsKey(classDeclaration)) {
-            current = new SymbolTable(current);
+            current = new Scope(current);
             scopes.put(classDeclaration, current);
         } else {
             current = scopes.get(classDeclaration);
@@ -60,7 +60,7 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void inAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
         if (!scopes.containsKey(functionDeclaration)) {
-            current = new SymbolTable(current);
+            current = new Scope(current);
             scopes.put(functionDeclaration, current);
         } else {
             current = scopes.get(functionDeclaration);
@@ -75,7 +75,7 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
         if (!scopes.containsKey(functionDeclaration)) {
-            current = new SymbolTable(current);
+            current = new Scope(current);
             scopes.put(functionDeclaration, current);
         } else {
             current = scopes.get(functionDeclaration);
@@ -90,7 +90,7 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void inAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
         if (!scopes.containsKey(constructorDeclaration)) {
-            current = new SymbolTable(current);
+            current = new Scope(current);
             scopes.put(constructorDeclaration, current);
         } else {
             current = scopes.get(constructorDeclaration);
@@ -105,7 +105,7 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void inABlockStatement(ABlockStatement blockStatement) {
         if (!scopes.containsKey(blockStatement)) {
-            current = new SymbolTable(current);
+            current = new Scope(current);
             scopes.put(blockStatement, current);
         } else {
             current = scopes.get(blockStatement);
