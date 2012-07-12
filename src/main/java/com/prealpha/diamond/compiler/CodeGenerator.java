@@ -30,7 +30,7 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.*;
 
 final class CodeGenerator extends ScopeAwareWalker {
-    private final ListMultimap<Node, Instruction> instructions;
+    private final ListMultimap<Node, String> instructions;
 
     private final Map<Node, String> labels;
 
@@ -74,12 +74,12 @@ final class CodeGenerator extends ScopeAwareWalker {
         instructions.putAll(statement, instructions.get(condition));
 
         // OK, now JSR to the then or else blocks as appropriate
-        instructions.put(statement, new Instruction(BasicOpcode.IFE, Value.PEEK, Value.LITERAL, "0x0001"));
-        instructions.put(statement, new Instruction(SpecialOpcode.JSR, Value.LITERAL, obtainStartLabel(thenBody)));
+        instructions.put(statement, "IFE [SP] 0x0001");
+        instructions.put(statement, "JSR " + obtainStartLabel(thenBody));
         detachedNodes.add(thenBody);
         if (elseBody != null) {
-            instructions.put(statement, new Instruction(BasicOpcode.IFE, Value.PEEK, Value.LITERAL, "0x0001"));
-            instructions.put(statement, new Instruction(SpecialOpcode.JSR, Value.LITERAL, obtainStartLabel(elseBody)));
+            instructions.put(statement, "IFE [SP] 0x0001");
+            instructions.put(statement, "JSR " + obtainStartLabel(elseBody));
             detachedNodes.add(elseBody);
         }
 
@@ -92,11 +92,11 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
 
-        instructions.put(statement, new Instruction(SpecialOpcode.JSR, Value.LITERAL, obtainStartLabel(statement.getCondition())));
-        instructions.put(statement, new Instruction(BasicOpcode.IFE, Value.PEEK, Value.LITERAL, "0x0000"));
-        instructions.put(statement, new Instruction(BasicOpcode.ADD, Value.PC, Value.LITERAL, "0x0002"));
-        instructions.put(statement, new Instruction(SpecialOpcode.JSR, Value.LITERAL, obtainStartLabel(statement.getBody())));
-        instructions.put(statement, new Instruction(BasicOpcode.SUB, Value.PC, Value.LITERAL, "0x0005"));
+        instructions.put(statement, "JSR " + obtainStartLabel(statement.getCondition()));
+        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "ADD PC 0x0002");
+        instructions.put(statement, "JSR " + obtainStartLabel(statement.getBody()));
+        instructions.put(statement, "SUB PC 0x0005");
         detachedNodes.add(statement.getCondition());
         detachedNodes.add(statement.getBody());
 
@@ -106,7 +106,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void declareLocal(Node context, TypedSymbol local) {
         stack.push(local);
         for (int i = 0; i < local.getType().getWidth(); i++) {
-            instructions.put(context, new Instruction(BasicOpcode.SET, Value.PUSH_POP, "0x0000"));
+            instructions.put(context, "SET PUSH 0x0000");
         }
     }
 
@@ -114,7 +114,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol popped = stack.pop();
         assert (popped == local);
         String widthString = String.format("0x%x", local.getType().getWidth());
-        instructions.put(context, new Instruction(BasicOpcode.ADD, Value.SP, Value.LITERAL, widthString));
+        instructions.put(context, "ADD SP " + widthString);
     }
 
     private void generateLabel(Node node) {
