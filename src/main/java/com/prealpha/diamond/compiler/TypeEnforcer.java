@@ -7,6 +7,7 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
@@ -111,6 +112,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
         checkNotNull(exceptionBuffer);
         this.exceptionBuffer = exceptionBuffer;
         this.types = Maps.newHashMap();
+    }
+
+    public Map<Node, TypeToken> getTypes() {
+        return ImmutableMap.copyOf(types);
     }
 
     private void assertAssignableTo(Node node, TypeToken type) {

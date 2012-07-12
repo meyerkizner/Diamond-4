@@ -7,6 +7,7 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
@@ -32,6 +33,8 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.*;
 
 final class CodeGenerator extends ScopeAwareWalker {
+    private final Map<Node, TypeToken> types;
+
     private final ListMultimap<Node, String> instructions;
 
     private final Map<Node, String> labels;
@@ -42,8 +45,9 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Deque<TypedSymbol> stack;
 
-    public CodeGenerator(ScopeAwareWalker scopeSource) {
+    public CodeGenerator(ScopeAwareWalker scopeSource, Map<Node, TypeToken> types) {
         super(scopeSource);
+        this.types = ImmutableMap.copyOf(types);
         instructions = ArrayListMultimap.create();
         labels = Maps.newHashMap();
         topLevelNodes = Lists.newArrayList();
