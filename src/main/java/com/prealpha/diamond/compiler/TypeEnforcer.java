@@ -25,6 +25,7 @@ import com.prealpha.diamond.compiler.node.AConditionalExpression;
 import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
+import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADivideAssignment;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
@@ -80,6 +81,7 @@ import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
+import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
@@ -238,6 +240,18 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outASwitchStatement(ASwitchStatement switchStatement) {
         assertIntegral(switchStatement.getValue());
+
+        // check that there is no more than one case group with a default label
+        boolean seenDefault = false;
+        for (PCaseGroup caseGroup : switchStatement.getBody()) {
+            if (caseGroup instanceof ADefaultCaseGroup) {
+                if (seenDefault) {
+                    exceptionBuffer.add(new SemanticException(caseGroup, "only one case group may contain a default"));
+                } else {
+                    seenDefault = true;
+                }
+            }
+        }
     }
 
     @Override
