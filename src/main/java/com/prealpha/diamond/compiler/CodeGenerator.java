@@ -13,8 +13,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
+import com.prealpha.diamond.compiler.node.ARepeatStatement;
 import com.prealpha.diamond.compiler.node.AStatementTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -66,25 +68,26 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void evaluateIfThenElse(Node statement, PExpression condition, PStatement thenBody, PStatement elseBody) {
-        // we need to create a pseudo-local to evaluate the (potentially arbitrary) condition
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
 
-        // evaluate the condition - this should store the result in the local we just created
-        instructions.putAll(statement, instructions.get(condition));
+        inline(statement, condition);
 
-        // OK, now JSR to the then or else blocks as appropriate
-        instructions.put(statement, "IFE [SP] 0x0001");
-        instructions.put(statement, "JSR " + obtainStartLabel(thenBody));
-        detachedNodes.add(thenBody);
+        instructions.put(statement, "IFN POP 0x0000");
+        instructions.put(statement, "SET PC " + obtainStartLabel(thenBody));
         if (elseBody != null) {
-            instructions.put(statement, "IFE [SP] 0x0001");
-            instructions.put(statement, "JSR " + obtainStartLabel(elseBody));
-            detachedNodes.add(elseBody);
+            instructions.put(statement, "SET PC " + obtainStartLabel(elseBody));
+            instructions.put(thenBody, "SET PC " + obtainEndLabel(statement));
+            inline(statement, thenBody);
+            inline(statement, elseBody);
+        } else {
+            instructions.put(statement, "SET PC " + obtainEndLabel(statement));
+            inline(statement, thenBody);
         }
 
-        // get our pseudo-local off the stack
-        reclaimLocal(statement, pseudoLocal);
+        // note that we already reclaimed our pseudo-local in the IFN POP 0x0000
+        TypedSymbol popped = stack.pop();
+        assert (popped == pseudoLocal);
     }
 
     @Override
@@ -92,15 +95,47 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
 
-        instructions.put(statement, "JSR " + obtainStartLabel(statement.getCondition()));
-        instructions.put(statement, "IFE [SP] 0x0000");
-        instructions.put(statement, "ADD PC 0x0002");
-        instructions.put(statement, "JSR " + obtainStartLabel(statement.getBody()));
-        instructions.put(statement, "SUB PC 0x0005");
-        detachedNodes.add(statement.getCondition());
-        detachedNodes.add(statement.getBody());
+        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
+        inline(statement, statement.getCondition());
+        instructions.put(statement, "IFN [SP] 0x0000");
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
 
         reclaimLocal(statement, pseudoLocal);
+        instructions.put(statement, "SET PC " + obtainEndLabel(statement));
+
+        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
+        inline(statement, statement.getBody());
+    }
+
+    @Override
+    public void outAForStatement(AForStatement statement) {
+        // if the init statement declares a local, we need to know now and put it on the stack
+        for (LocalSymbol initLocal : getScope().getLocals()) {
+            declareLocal(statement, initLocal);
+        }
+        assert (getScope().getLocals().size() <= 1);
+
+        // ok, now whatever expression was in the init is free to run and put its result on the stack
+        inline(statement, statement.getInit());
+
+        // use a pseudo-local to evaluate the condition
+        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, pseudoLocal);
+        instructions.get(statement.getCondition()).add("SET [SP] 0x0000");
+        inline(statement, statement.getCondition());
+
+        instructions.put(statement, "IFN [SP] 0x0000");
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
+        reclaimLocal(statement, pseudoLocal);
+        for (LocalSymbol initLocal : Lists.reverse(getScope().getLocals())) {
+            reclaimLocal(statement, initLocal);
+        }
+        instructions.put(statement, "SET PC " + obtainEndLabel(statement));
+
+        inline(statement, statement.getBody());
+
+        inline(statement, statement.getUpdate());
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getCondition()));
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
@@ -142,6 +177,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     private String obtainEndLabel(Node node) {
         generateLabel(node);
         return "end_" + labels.get(node);
+    }
+
+    /*
+     * Only use this on things that will exit with the stack in the same state as it entered; because none of this
+     * updates the stack as necessary. Generates labels if they do not already exist for subject.
+     */
+    private void inline(Node context, Node subject) {
+        instructions.put(context, ":" + obtainStartLabel(subject));
+        instructions.putAll(context, instructions.get(subject));
+        instructions.put(context, ":" + obtainEndLabel(subject));
     }
 
     private static final class PseudoLocal implements TypedSymbol {

@@ -228,6 +228,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAForStatement(AForStatement forStatement) {
         assertAssignableTo(forStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        super.outAForStatement(forStatement);
     }
 
     @Override

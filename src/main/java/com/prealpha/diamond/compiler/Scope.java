@@ -9,6 +9,7 @@ package com.prealpha.diamond.compiler;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -51,8 +52,8 @@ final class Scope {
         classSymbols = Maps.newHashMap();
         functionSymbols = HashMultimap.create();
         constructorSymbols = Sets.newHashSet();
-        fieldSymbols = Maps.newHashMap();
-        localSymbols = Maps.newHashMap();
+        fieldSymbols = Maps.newLinkedHashMap();
+        localSymbols = Maps.newLinkedHashMap();
     }
 
     Scope(Scope unfiltered, Predicate<Symbol> predicate) {
@@ -165,5 +166,14 @@ final class Scope {
         } else {
             throw new SemanticException(String.format("cannot resolve local symbol \"%s\"", name));
         }
+    }
+
+    /**
+     * Returns the locals that are strictly within this scope. Locals inherited from parent scopes are not included.
+     *
+     * @return the list of locals in this scope, in the order declared
+     */
+    public List<LocalSymbol> getLocals() {
+        return ImmutableList.copyOf(localSymbols.values());
     }
 }

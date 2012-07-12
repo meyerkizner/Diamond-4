@@ -12,6 +12,7 @@ import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
+import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.Node;
@@ -121,5 +122,15 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void outABlockStatement(ABlockStatement blockStatement) {
         onExitScope(blockStatement);
+    }
+
+    @Override
+    public void inAForStatement(AForStatement forStatement) {
+        onEnterScope(forStatement);
+    }
+
+    @Override
+    public void outAForStatement(AForStatement forStatement) {
+        onExitScope(forStatement);
     }
 }
