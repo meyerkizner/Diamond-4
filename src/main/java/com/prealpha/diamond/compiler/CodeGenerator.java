@@ -96,14 +96,14 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
         inline(statement, statement.getCondition());
-        instructions.put(statement, "IFN [SP] 0x0000");
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
 
-        reclaimLocal(statement, pseudoLocal);
-        instructions.put(statement, "SET PC " + obtainEndLabel(statement));
+        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
         inline(statement, statement.getBody());
+
+        reclaimLocal(statement, pseudoLocal);
     }
 
     @Override
@@ -115,26 +115,31 @@ final class CodeGenerator extends ScopeAwareWalker {
         assert (getScope().getLocals().size() <= 1);
 
         // ok, now whatever expression was in the init is free to run and put its result on the stack
+        // (glad we don't allow multiple locals to be declared!)
         inline(statement, statement.getInit());
 
         // use a pseudo-local to evaluate the condition
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
-        instructions.get(statement.getCondition()).add("SET [SP] 0x0000");
+
+        // we actually want the update on top, so skip to the condition
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getCondition()));
+
+        inline(statement, statement.getUpdate());
+
+        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
         inline(statement, statement.getCondition());
 
-        instructions.put(statement, "IFN [SP] 0x0000");
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
+        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
+
+        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getUpdate()));
+        inline(statement, statement.getBody());
+
         reclaimLocal(statement, pseudoLocal);
         for (LocalSymbol initLocal : Lists.reverse(getScope().getLocals())) {
             reclaimLocal(statement, initLocal);
         }
-        instructions.put(statement, "SET PC " + obtainEndLabel(statement));
-
-        inline(statement, statement.getBody());
-
-        inline(statement, statement.getUpdate());
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getCondition()));
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
