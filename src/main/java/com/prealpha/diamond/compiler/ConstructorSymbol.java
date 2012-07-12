@@ -11,11 +11,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
-import com.prealpha.diamond.compiler.node.AUserDefinedTypeToken;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PModifier;
-import com.prealpha.diamond.compiler.node.PTypeToken;
-import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -26,7 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 final class ConstructorSymbol implements ParametrizedSymbol {
     private final AConstructorDeclaration declaration;
 
-    private final TIdentifier returnType;
+    private final UserDefinedTypeToken returnType;
 
     private final List<LocalSymbol> parameters;
 
@@ -35,7 +32,7 @@ final class ConstructorSymbol implements ParametrizedSymbol {
     ConstructorSymbol(AConstructorDeclaration declaration) throws SemanticException {
         checkNotNull(declaration);
         this.declaration = declaration;
-        this.returnType = this.declaration.getReturnType();
+        this.returnType = new UserDefinedTypeToken(this.declaration.getReturnType().getText());
         this.parameters = Lists.newArrayList();
         for (PLocalDeclaration parameterNode : this.declaration.getParameters()) {
             LocalSymbol parameter = new LocalSymbol((ALocalDeclaration) parameterNode);
@@ -58,8 +55,8 @@ final class ConstructorSymbol implements ParametrizedSymbol {
     }
 
     @Override
-    public PTypeToken getReturnType() {
-        return new AUserDefinedTypeToken(returnType);
+    public UserDefinedTypeToken getReturnType() {
+        return returnType;
     }
 
     @Override

@@ -9,7 +9,6 @@ package com.prealpha.diamond.compiler;
 import com.google.common.collect.ImmutableSet;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.PModifier;
-import com.prealpha.diamond.compiler.node.PTypeToken;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -21,7 +20,7 @@ final class FieldSymbol implements TypedSymbol {
 
     private final String name;
 
-    private final PTypeToken type;
+    private final TypeToken type;
 
     private final Set<Modifier> modifiers;
 
@@ -29,7 +28,7 @@ final class FieldSymbol implements TypedSymbol {
         checkNotNull(declaration);
         this.declaration = declaration;
         this.name = this.declaration.getName().getText();
-        this.type = declaration.getType();
+        this.type = TypeTokenUtil.fromNode(declaration.getType());
         this.modifiers = EnumSet.noneOf(Modifier.class);
         for (PModifier modifierNode : this.declaration.getModifiers()) {
             Modifier modifier = Modifier.fromNode(modifierNode);
@@ -51,7 +50,7 @@ final class FieldSymbol implements TypedSymbol {
     }
 
     @Override
-    public PTypeToken getType() {
+    public TypeToken getType() {
         return type;
     }
 

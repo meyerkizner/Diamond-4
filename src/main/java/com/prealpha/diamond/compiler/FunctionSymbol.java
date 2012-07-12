@@ -27,7 +27,7 @@ final class FunctionSymbol implements ParametrizedSymbol {
 
     private final String name;
 
-    private final PTypeToken returnType;
+    private final TypeToken returnType;
 
     private final List<LocalSymbol> parameters;
 
@@ -44,7 +44,7 @@ final class FunctionSymbol implements ParametrizedSymbol {
     private FunctionSymbol(PFunctionDeclaration declaration, TIdentifier name, PTypeToken returnType, List<PLocalDeclaration> parameters, List<PModifier> modifiers) throws SemanticException {
         this.declaration = declaration;
         this.name = name.getText();
-        this.returnType = returnType;
+        this.returnType = TypeTokenUtil.fromNode(returnType);
         this.parameters = Lists.newArrayList();
         for (PLocalDeclaration parameterNode : parameters) {
             LocalSymbol parameter = new LocalSymbol((ALocalDeclaration) parameterNode);
@@ -71,7 +71,7 @@ final class FunctionSymbol implements ParametrizedSymbol {
     }
 
     @Override
-    public PTypeToken getReturnType() {
+    public TypeToken getReturnType() {
         return returnType;
     }
 

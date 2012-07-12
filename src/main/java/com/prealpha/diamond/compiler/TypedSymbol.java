@@ -6,8 +6,6 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.diamond.compiler.node.PTypeToken;
-
 interface TypedSymbol extends Symbol {
-    PTypeToken getType();
+    TypeToken getType();
 }

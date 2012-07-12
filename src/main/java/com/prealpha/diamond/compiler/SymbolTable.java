@@ -15,7 +15,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
-import com.prealpha.diamond.compiler.node.PTypeToken;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,12 +22,12 @@ import java.util.Map;
 import java.util.Set;
 
 final class SymbolTable {
-    private static final Function<ParametrizedSymbol, List<PTypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<PTypeToken>>() {
+    private static final Function<ParametrizedSymbol, List<TypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<TypeToken>>() {
         @Override
-        public List<PTypeToken> apply(ParametrizedSymbol parametrizedSymbol) {
-            return Lists.transform(parametrizedSymbol.getParameters(), new Function<LocalSymbol, PTypeToken>() {
+        public List<TypeToken> apply(ParametrizedSymbol parametrizedSymbol) {
+            return Lists.transform(parametrizedSymbol.getParameters(), new Function<LocalSymbol, TypeToken>() {
                 @Override
-                public PTypeToken apply(LocalSymbol input) {
+                public TypeToken apply(LocalSymbol input) {
                     return input.getType();
                 }
             });

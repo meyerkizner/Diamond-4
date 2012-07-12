@@ -6,12 +6,10 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.diamond.compiler.node.PTypeToken;
-
 import java.util.List;
 
 interface ParametrizedSymbol extends Symbol {
-    PTypeToken getReturnType();
+    TypeToken getReturnType();
 
     List<LocalSymbol> getParameters();
 }

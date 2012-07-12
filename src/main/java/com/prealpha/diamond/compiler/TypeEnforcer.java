@@ -317,10 +317,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
         try {
             try {
                 LocalSymbol localSymbol = getSymbols().resolveLocal(primaryExpression.getIdentifier().getText());
-                types.put(primaryExpression, TypeTokenUtil.fromNode(localSymbol.getType()));
+                types.put(primaryExpression, localSymbol.getType());
             } catch (SemanticException sx) {
                 FieldSymbol fieldSymbol = getSymbols().resolveField(primaryExpression.getIdentifier().getText());
-                types.put(primaryExpression, TypeTokenUtil.fromNode(fieldSymbol.getType()));
+                types.put(primaryExpression, fieldSymbol.getType());
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -360,8 +360,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
-            TypeToken type = TypeTokenUtil.fromNode(symbol.getType());
-            types.put(primaryExpression, type);
+            types.put(primaryExpression, symbol.getType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -479,7 +478,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             ParametrizedSymbol symbol = iterator.next();
             if (symbol.getParameters().size() == parameters.size()) {
                 for (int i = 0; i < symbol.getParameters().size(); i++) {
-                    TypeToken expectedType = TypeTokenUtil.fromNode(symbol.getParameters().get(i).getType());
+                    TypeToken expectedType = symbol.getParameters().get(i).getType();
                     TypeToken actualType = types.get(parameters.get(i));
                     if (!actualType.isAssignableTo(expectedType)) {
                         iterator.remove();
@@ -495,7 +494,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         } else if (symbols.size() == 0) {
             throw new SemanticException(invocation, "cannot resolve function with appropriate parameters");
         } else {
-            types.put(invocation.parent(), TypeTokenUtil.fromNode(symbols.iterator().next().getReturnType()));
+            types.put(invocation.parent(), symbols.iterator().next().getReturnType());
         }
     }
 
@@ -547,7 +546,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     private void enforceArrayAccess(Node arrayAccess, TypedSymbol symbol) throws SemanticException {
-        TypeToken arrayType = TypeTokenUtil.fromNode(symbol.getType());
+        TypeToken arrayType = symbol.getType();
         if (arrayType instanceof ArrayTypeToken) {
             types.put(arrayAccess.parent(), ((ArrayTypeToken) arrayType).getElementType());
         } else {
