@@ -501,7 +501,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAUnqualifiedArrayAccess(AUnqualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_LONG);
+        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
         try {
             try {
                 LocalSymbol localSymbol = getSymbols().resolveLocal(arrayAccess.getArrayName().getText());
@@ -517,7 +517,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_LONG);
+        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
         try {
             PQualifiedName qualifiedName = arrayAccess.getArrayName();
             TIdentifier fieldName;
