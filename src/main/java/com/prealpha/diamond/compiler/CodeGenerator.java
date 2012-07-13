@@ -16,6 +16,7 @@ import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
+import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
@@ -218,6 +219,11 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
+    @Override
+    public void outADeleteStatement(ADeleteStatement statement) {
+        throw new NoHeapException();
+    }
+
     private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
         if (caseGroup instanceof ACaseGroup) {
             return ((ACaseGroup) caseGroup).getValues();
@@ -229,6 +235,9 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
+        if (local.getType().isReference()) {
+            throw new NoHeapException();
+        }
         stack.push(local);
         for (int i = 0; i < local.getType().getWidth(); i++) {
             instructions.put(context, "SET PUSH 0x0000");
