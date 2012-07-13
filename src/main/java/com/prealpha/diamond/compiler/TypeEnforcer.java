@@ -267,7 +267,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         // also check that all literals are assignable to the type of the value expression
         Set<BigInteger> alreadySeen = Sets.newHashSet();
         for (PCaseGroup caseGroup : switchStatement.getBody()) {
-            for (PIntegralLiteral literal : ((ACaseGroup) caseGroup).getValues()) {
+            for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
                 assertAssignableTo(literal, types.get(switchStatement.getValue()));
                 try {
                     BigInteger value = IntegralTypeToken.parseLiteral(literal);
@@ -280,6 +280,16 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     exceptionBuffer.add(sx);
                 }
             }
+        }
+    }
+
+    private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
+        if (caseGroup instanceof ACaseGroup) {
+            return ((ACaseGroup) caseGroup).getValues();
+        } else if (caseGroup instanceof ADefaultCaseGroup) {
+            return ((ADefaultCaseGroup) caseGroup).getValues();
+        } else {
+            throw new UnsupportedOperationException("unknown case group flavor");
         }
     }
 
