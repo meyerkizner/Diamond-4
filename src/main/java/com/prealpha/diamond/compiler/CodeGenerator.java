@@ -31,7 +31,6 @@ import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
-import com.prealpha.diamond.compiler.node.AStatementTopLevelStatement;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -58,8 +57,6 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Map<Node, String> labels;
 
-    private final List<Node> topLevelNodes;
-
     private final Set<Node> detachedNodes;
 
     private final Deque<TypedSymbol> stack;
@@ -76,7 +73,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         this.types = ImmutableMap.copyOf(types);
         instructions = ArrayListMultimap.create();
         labels = Maps.newHashMap();
-        topLevelNodes = Lists.newArrayList();
         detachedNodes = Sets.newHashSet();
         stack = Lists.newLinkedList();
         flowModifiers = Lists.newLinkedList();
@@ -195,12 +191,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         public Set<Modifier> getModifiers() {
             return ImmutableSet.of();
         }
-    }
-
-    @Override
-    public void caseAStatementTopLevelStatement(AStatementTopLevelStatement topLevelStatement) {
-        PStatement statement = topLevelStatement.getStatement();
-        topLevelNodes.add(statement);
     }
 
     @Override

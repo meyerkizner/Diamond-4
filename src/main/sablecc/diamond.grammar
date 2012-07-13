@@ -175,8 +175,7 @@ Productions
 	program = top_level_statement*;
 	top_level_statement =   {class} class_declaration {-> New top_level_statement.class(class_declaration)} |
 							{function} function_declaration {-> New top_level_statement.function(function_declaration)} |
-							{include} include {-> New top_level_statement.include(include)} |
-							{statement} statement {-> New top_level_statement.statement(statement)};
+							{include} include {-> New top_level_statement.include(include)};
 	statement = {standalone_statement} standalone_statement {-> standalone_statement.statement} |
 				{if_then_statement} if_then_statement {-> if_then_statement.statement} |
 				{if_then_else_statement} if_then_else_statement {-> if_then_else_statement.statement} |
@@ -379,8 +378,7 @@ Abstract Syntax Tree
 	program = top_level_statement*;
 	top_level_statement =   {class} class_declaration |
 							{function} function_declaration |
-							{include} include |
-							{statement} statement;
+							{include} include;
 	statement =             {if_then} [condition]:expression [then]:statement |
 							{if_then_else} [condition]:expression [then]:statement [else]:statement |
 							{while} [condition]:expression [body]:statement |

@@ -380,7 +380,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
      * <ul>
      *     <li>If qualified with an expression, resolve non-static fields within the scope of the expression type.</li>
      *     <li>If qualified with a type token, resolve static fields within the scope of the named type.</li>
-     *     <li>If qualified with no target, resolve locals within the global scope.</li>
      * </ul>
      *
      * @param primaryExpression the qualified name expression
@@ -402,8 +401,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     TypeToken target = TypeTokenUtil.fromNode(rawTarget);
                     symbol = resolveFieldFromType(target, typeName.getName().getText(), true);
                 } else {
-                    Scope scope = getScope(null);
-                    symbol = scope.resolveLocal(typeName.getName().getText());
+                    throw new SemanticException(primaryExpression, "there are no fields in the global scope");
                 }
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
