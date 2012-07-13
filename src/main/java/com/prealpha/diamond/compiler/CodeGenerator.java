@@ -21,7 +21,6 @@ import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
-import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
@@ -82,7 +81,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         super.onExitScope(scopeKey);
     }
 
-    private void reclaimScope(Node context, Scope scope) {
+    void reclaimScope(Node context, Scope scope) {
         for (LocalSymbol local : Lists.reverse(scope.getLocals())) {
             reclaimLocal(context, local);
         }
@@ -130,12 +129,12 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    private String obtainStartLabel(Node node) {
+    String obtainStartLabel(Node node) {
         generateLabel(node);
         return "start_" + labels.get(node);
     }
 
-    private String obtainEndLabel(Node node) {
+    String obtainEndLabel(Node node) {
         generateLabel(node);
         return "end_" + labels.get(node);
     }
@@ -168,6 +167,10 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
+    void jumpTo(Node context, String label) {
+        instructions.put(context, "SET PC " + label);
+    }
+
     private static final class PseudoLocal implements TypedSymbol {
         private final TypeToken type;
 
@@ -189,167 +192,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         @Override
         public Set<Modifier> getModifiers() {
             return ImmutableSet.of();
-        }
-    }
-
-    private static interface FlowModifier {
-        boolean onBreak(Node context);
-
-        boolean onContinue(Node context);
-
-        boolean onReturn(Node context);
-    }
-
-    private final class WhileFlowModifier implements FlowModifier {
-        private final AWhileStatement whileStatement;
-
-        public WhileFlowModifier(AWhileStatement whileStatement) {
-            checkNotNull(whileStatement);
-            this.whileStatement = whileStatement;
-        }
-
-        @Override
-        public boolean onBreak(Node context) {
-            while (getScope() != getEnclosingScope(whileStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainEndLabel(whileStatement.getBody()));
-            return true;
-        }
-
-        @Override
-        public boolean onContinue(Node context) {
-            while (getScope() != getEnclosingScope(whileStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainStartLabel(whileStatement.getCondition()));
-            return true;
-        }
-
-        @Override
-        public boolean onReturn(Node context) {
-            return false;
-        }
-    }
-
-    private final class ForFlowModifier implements FlowModifier {
-        private final AForStatement forStatement;
-
-        public ForFlowModifier(AForStatement forStatement) {
-            checkNotNull(forStatement);
-            this.forStatement = forStatement;
-        }
-
-        @Override
-        public boolean onBreak(Node context) {
-            while (getScope() != getEnclosingScope(forStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainEndLabel(forStatement.getBody()));
-            return true;
-        }
-
-        @Override
-        public boolean onContinue(Node context) {
-            while (getScope() != getEnclosingScope(forStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainStartLabel(forStatement.getUpdate()));
-            return true;
-        }
-
-        @Override
-        public boolean onReturn(Node context) {
-            return false;
-        }
-    }
-
-    private final class DoFlowModifier implements FlowModifier {
-        private final ADoStatement doStatement;
-
-        public DoFlowModifier(ADoStatement doStatement) {
-            checkNotNull(doStatement);
-            this.doStatement = doStatement;
-        }
-
-        @Override
-        public boolean onBreak(Node context) {
-            while (getScope() != getEnclosingScope(doStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainEndLabel(doStatement.getCondition()));
-            return true;
-        }
-
-        @Override
-        public boolean onContinue(Node context) {
-            while (getScope() != getEnclosingScope(doStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainStartLabel(doStatement.getCondition()));
-            return true;
-        }
-
-        @Override
-        public boolean onReturn(Node context) {
-            return false;
-        }
-    }
-
-    private final class SwitchFlowModifier implements FlowModifier {
-        private final ASwitchStatement switchStatement;
-
-        public SwitchFlowModifier(ASwitchStatement switchStatement) {
-            checkNotNull(switchStatement);
-            this.switchStatement = switchStatement;
-        }
-
-        @Override
-        public boolean onBreak(Node context) {
-            while (getScope() != getEnclosingScope(switchStatement)) {
-                reclaimScope(context, getScope());
-            }
-            instructions.put(context, "SET PC " + obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
-            return true;
-        }
-
-        @Override
-        public boolean onContinue(Node context) {
-            return false;
-        }
-
-        @Override
-        public boolean onReturn(Node context) {
-            return false;
-        }
-    }
-
-    private final class FunctionFlowModifier implements FlowModifier {
-        private final AFunctionDeclaration functionDeclaration;
-
-        public FunctionFlowModifier(AFunctionDeclaration functionDeclaration) {
-            checkNotNull(functionDeclaration);
-            this.functionDeclaration = functionDeclaration;
-        }
-
-        @Override
-        public boolean onBreak(Node context) {
-            return false;
-        }
-
-        @Override
-        public boolean onContinue(Node context) {
-            return false;
-        }
-
-        @Override
-        public boolean onReturn(Node context) {
-            while (getScope() != getEnclosingScope(functionDeclaration)) {
-                reclaimScope(context, getScope());
-            }
-            reclaimScope(context, getScope());
-            instructions.put(context, "SET PC POP");
-            return true;
         }
     }
 
@@ -388,7 +230,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void inAWhileStatement(AWhileStatement statement) {
-        flowModifiers.push(new WhileFlowModifier(statement));
+        flowModifiers.push(new WhileFlowModifier(this, statement));
     }
 
     @Override
@@ -412,7 +254,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void inAForStatement(AForStatement statement) {
         super.inAForStatement(statement);
-        flowModifiers.push(new ForFlowModifier(statement));
+        flowModifiers.push(new ForFlowModifier(this, statement));
     }
 
     @Override
@@ -444,7 +286,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void inADoStatement(ADoStatement statement) {
-        flowModifiers.push(new DoFlowModifier(statement));
+        flowModifiers.push(new DoFlowModifier(this, statement));
     }
 
     @Override
@@ -466,7 +308,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void inASwitchStatement(ASwitchStatement statement) {
-        flowModifiers.push(new SwitchFlowModifier(statement));
+        flowModifiers.push(new SwitchFlowModifier(this, statement));
     }
 
     @Override
