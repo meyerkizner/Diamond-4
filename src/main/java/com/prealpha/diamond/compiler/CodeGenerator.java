@@ -25,6 +25,7 @@ import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
 import com.prealpha.diamond.compiler.node.AFieldClassStatement;
+import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
@@ -493,5 +494,19 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void outAConstructorClassStatement(AConstructorClassStatement classStatement) {
         inline(classStatement, classStatement.getConstructorDeclaration());
+    }
+
+    @Override
+    public void outAFieldDeclaration(AFieldDeclaration declaration) {
+        try {
+            FieldSymbol symbol = getScope().resolveField(declaration.getName().getText());
+            if (symbol.getModifiers().contains(Modifier.STATIC)) {
+                for (int i = 0; i < symbol.getType().getWidth(); i++) {
+                    instructions.put(declaration, "DAT 0x0000");
+                }
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
     }
 }
