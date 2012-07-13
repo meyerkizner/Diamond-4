@@ -61,6 +61,14 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
+    protected void onExitScope(Node scopeKey) {
+        for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
+            reclaimLocal(scopeKey, local);
+        }
+        super.onExitScope(scopeKey);
+    }
+
+    @Override
     public void caseAStatementTopLevelStatement(AStatementTopLevelStatement topLevelStatement) {
         PStatement statement = topLevelStatement.getStatement();
         topLevelNodes.add(statement);
@@ -139,9 +147,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement, statement.getBody());
 
         reclaimLocal(statement, pseudoLocal);
-        for (LocalSymbol initLocal : Lists.reverse(getScope().getLocals())) {
-            reclaimLocal(statement, initLocal);
-        }
+        super.outAForStatement(statement);
     }
 
     @Override
