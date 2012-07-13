@@ -14,14 +14,19 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.ACaseGroup;
+import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AStatementTopLevelStatement;
+import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
+import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PExpression;
+import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.Token;
 
@@ -157,6 +162,64 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement, statement.getBody());
 
         reclaimLocal(statement, pseudoLocal);
+    }
+
+    @Override
+    public void outASwitchStatement(ASwitchStatement statement) {
+        try {
+            TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getValue()));
+            declareLocal(statement, pseudoLocal);
+
+            inline(statement, statement.getValue());
+
+            PCaseGroup defaultCaseGroup = null;
+            for (PCaseGroup caseGroup : statement.getBody()) {
+                for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
+                    long value = IntegralTypeToken.parseLiteral(literal).longValue();
+                    switch (types.get(statement.getValue()).getWidth()) {
+                        case 4:
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 3), (value & 0xffff000000000000L) >>> 48));
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 2), (value & 0x0000ffff00000000L) >>> 32));
+                        case 2:
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 1), (value & 0x00000000ffff0000L) >>> 16));
+                        case 1:
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 0), value & 0x000000000000ffffL));
+                            break;
+                        default:
+                            assert false; // there shouldn't be any other widths
+                    }
+                    instructions.put(statement, "SET PC " + obtainStartLabel(caseGroup));
+                }
+                if (caseGroup instanceof ADefaultCaseGroup) {
+                    assert (defaultCaseGroup == null);
+                    defaultCaseGroup = caseGroup;
+                }
+            }
+            if (defaultCaseGroup != null) {
+                instructions.put(statement, "SET PC " + obtainStartLabel(defaultCaseGroup));
+            } else if (!statement.getBody().isEmpty()) {
+                instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
+            }
+
+            for (PCaseGroup caseGroup : statement.getBody()) {
+                inline(statement, caseGroup);
+            }
+
+            reclaimLocal(statement, pseudoLocal);
+        } catch (SemanticException sx) {
+            // there should not be new semantic problems at this stage
+            throw new AssertionError(sx);
+        }
+    }
+
+    private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
+        if (caseGroup instanceof ACaseGroup) {
+            return ((ACaseGroup) caseGroup).getValues();
+        } else if (caseGroup instanceof ADefaultCaseGroup) {
+            return ((ADefaultCaseGroup) caseGroup).getValues();
+        } else {
+            throw new UnsupportedOperationException("unknown case group flavor");
+        }
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
