@@ -491,7 +491,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             FieldSymbol symbol = getScope().resolveField(declaration.getName().getText());
             if (symbol.getModifiers().contains(Modifier.STATIC)) {
+                generateLabel(declaration);
                 for (int i = 0; i < symbol.getType().getWidth(); i++) {
+                    instructions.put(declaration, String.format(":%d_%s", i, labels.get(declaration)));
                     instructions.put(declaration, "DAT 0x0000");
                 }
             }
