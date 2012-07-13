@@ -87,12 +87,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    @Override
-    public void caseAStatementTopLevelStatement(AStatementTopLevelStatement topLevelStatement) {
-        PStatement statement = topLevelStatement.getStatement();
-        topLevelNodes.add(statement);
-    }
-
     private void declareLocal(Node context, TypedSymbol local) {
         if (local.getType().isReference()) {
             throw new NoHeapException();
@@ -193,6 +187,12 @@ final class CodeGenerator extends ScopeAwareWalker {
         public Set<Modifier> getModifiers() {
             return ImmutableSet.of();
         }
+    }
+
+    @Override
+    public void caseAStatementTopLevelStatement(AStatementTopLevelStatement topLevelStatement) {
+        PStatement statement = topLevelStatement.getStatement();
+        topLevelNodes.add(statement);
     }
 
     @Override
@@ -359,6 +359,16 @@ final class CodeGenerator extends ScopeAwareWalker {
         flowModifiers.pop();
     }
 
+    private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
+        if (caseGroup instanceof ACaseGroup) {
+            return ((ACaseGroup) caseGroup).getValues();
+        } else if (caseGroup instanceof ADefaultCaseGroup) {
+            return ((ADefaultCaseGroup) caseGroup).getValues();
+        } else {
+            throw new UnsupportedOperationException("unknown case group flavor");
+        }
+    }
+
     @Override
     public void outADeleteStatement(ADeleteStatement statement) {
         throw new NoHeapException();
@@ -426,15 +436,5 @@ final class CodeGenerator extends ScopeAwareWalker {
             flag = flowModifiers.pop().onReturn(statement);
         } while (!flag);
         inFlowModifier = false;
-    }
-
-    private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
-        if (caseGroup instanceof ACaseGroup) {
-            return ((ACaseGroup) caseGroup).getValues();
-        } else if (caseGroup instanceof ADefaultCaseGroup) {
-            return ((ADefaultCaseGroup) caseGroup).getValues();
-        } else {
-            throw new UnsupportedOperationException("unknown case group flavor");
-        }
     }
 }
