@@ -99,10 +99,10 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
 
-        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
         inline(statement, statement.getCondition());
 
-        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
@@ -124,10 +124,10 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement, statement.getUpdate());
 
-        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
         inline(statement, statement.getCondition());
 
-        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getUpdate()));
@@ -148,9 +148,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         // to make break and continue work, we actually have to have the condition first, and then jump around a bit
         instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
 
-        instructions.get(statement.getCondition()).add(0, "SET [SP] 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
         inline(statement, statement.getCondition());
-        instructions.put(statement, "IFE [SP] 0x0000");
+        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
@@ -208,6 +208,24 @@ final class CodeGenerator extends ScopeAwareWalker {
         instructions.put(context, ":" + obtainStartLabel(subject));
         instructions.putAll(context, instructions.get(subject));
         instructions.put(context, ":" + obtainEndLabel(subject));
+    }
+
+    private String lookup(TypedSymbol symbol, int wordOffset) {
+        checkArgument(wordOffset < symbol.getType().getWidth());
+        checkArgument(wordOffset >= 0);
+        int symbolOffset = 0;
+        for (TypedSymbol stackSymbol : stack) {
+            if (stackSymbol == symbol) {
+                break;
+            } else {
+                symbolOffset += stackSymbol.getType().getWidth();
+            }
+        }
+        if (symbolOffset == 0 && wordOffset == 0) {
+            return "[SP]";
+        } else {
+            return String.format("[SP+%d]", symbolOffset + wordOffset);
+        }
     }
 
     private static final class PseudoLocal implements TypedSymbol {
