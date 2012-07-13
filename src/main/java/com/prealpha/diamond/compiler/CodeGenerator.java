@@ -61,6 +61,8 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private TypedSymbol returnLocation;
 
+    private boolean inFlowModifier;
+
     public CodeGenerator(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer, Map<Node, TypeToken> types) {
         super(scopeSource);
         this.exceptionBuffer = exceptionBuffer;
@@ -263,6 +265,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outABreakStatement(ABreakStatement statement) {
+        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
@@ -271,10 +274,12 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
             flag = flowModifiers.pop().onBreak(statement);
         } while (!flag);
+        inFlowModifier = false;
     }
 
     @Override
     public void outAContinueStatement(AContinueStatement statement) {
+        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
@@ -283,6 +288,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
             flag = flowModifiers.pop().onContinue(statement);
         } while (!flag);
+        inFlowModifier = true;
     }
 
     @Override
@@ -309,6 +315,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         reclaimLocal(statement, pseudoLocal);
 
+        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
@@ -317,6 +324,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
             flag = flowModifiers.pop().onReturn(statement);
         } while (!flag);
+        inFlowModifier = false;
     }
 
     private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
@@ -340,8 +348,10 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void reclaimLocal(Node context, TypedSymbol local) {
-        TypedSymbol popped = stack.pop();
-        assert (popped == local);
+        if (!inFlowModifier) {
+            TypedSymbol popped = stack.pop();
+            assert (popped == local);
+        }
         String widthString = String.format("0x%4x", local.getType().getWidth());
         instructions.put(context, "ADD SP " + widthString);
     }
