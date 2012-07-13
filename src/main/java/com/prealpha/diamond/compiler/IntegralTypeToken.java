@@ -87,24 +87,27 @@ enum IntegralTypeToken implements TypeToken {
         return name().toLowerCase().replace('_', ' ');
     }
 
-    public static IntegralTypeToken fromNode(PIntegralLiteral node) throws SemanticException {
-        BigInteger value;
-        if (node instanceof ADecimalIntegralLiteral) {
-            value = new BigInteger(((ADecimalIntegralLiteral) node).getDecimalLiteral().getText());
-        } else if (node instanceof AHexIntegralLiteral) {
-            value = new BigInteger(((AHexIntegralLiteral) node).getHexLiteral().getText().substring(2), 16);
-        } else if (node instanceof AOctalIntegralLiteral) {
-            value = new BigInteger(((AOctalIntegralLiteral) node).getOctalLiteral().getText(), 8);
-        } else if (node instanceof ABinaryIntegralLiteral) {
-            value = new BigInteger(((ABinaryIntegralLiteral) node).getBinaryLiteral().getText().substring(2), 2);
-        } else {
-            throw new SemanticException(node, "unknown integral literal flavor");
-        }
+    public static IntegralTypeToken fromLiteral(PIntegralLiteral literal) throws SemanticException {
+        BigInteger value = parseLiteral(literal);
         for (IntegralTypeToken type : values()) {
             if (value.getLowestSetBit() <= type.width) {
                 return type;
             }
         }
-        throw new SemanticException(node, "integral literal too big");
+        throw new SemanticException(literal, "integral literal too big");
+    }
+
+    public static BigInteger parseLiteral(PIntegralLiteral literal) throws SemanticException {
+        if (literal instanceof ADecimalIntegralLiteral) {
+            return new BigInteger(((ADecimalIntegralLiteral) literal).getDecimalLiteral().getText());
+        } else if (literal instanceof AHexIntegralLiteral) {
+            return new BigInteger(((AHexIntegralLiteral) literal).getHexLiteral().getText().substring(2), 16);
+        } else if (literal instanceof AOctalIntegralLiteral) {
+            return new BigInteger(((AOctalIntegralLiteral) literal).getOctalLiteral().getText(), 8);
+        } else if (literal instanceof ABinaryIntegralLiteral) {
+            return new BigInteger(((ABinaryIntegralLiteral) literal).getBinaryLiteral().getText().substring(2), 2);
+        } else {
+            throw new SemanticException(literal, "unknown integral literal flavor");
+        }
     }
 }

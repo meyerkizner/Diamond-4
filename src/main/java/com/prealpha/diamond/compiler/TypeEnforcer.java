@@ -9,6 +9,7 @@ package com.prealpha.diamond.compiler;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AAssignment;
@@ -20,6 +21,7 @@ import com.prealpha.diamond.compiler.node.ABitwiseOrAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseXorAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
+import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
 import com.prealpha.diamond.compiler.node.AConditionalExpression;
@@ -86,15 +88,18 @@ import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PTypeToken;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -257,6 +262,25 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 }
             }
         }
+
+        // check that there are no duplicates among the case labels
+        // also check that all literals are assignable to the type of the value expression
+        Set<BigInteger> alreadySeen = Sets.newHashSet();
+        for (PCaseGroup caseGroup : switchStatement.getBody()) {
+            for (PIntegralLiteral literal : ((ACaseGroup) caseGroup).getValues()) {
+                assertAssignableTo(literal, types.get(switchStatement.getValue()));
+                try {
+                    BigInteger value = IntegralTypeToken.parseLiteral(literal);
+                    if (alreadySeen.contains(value)) {
+                        throw new SemanticException(caseGroup, "duplicate case label for " + value);
+                    } else {
+                        alreadySeen.add(value);
+                    }
+                } catch (SemanticException sx) {
+                    exceptionBuffer.add(sx);
+                }
+            }
+        }
     }
 
     @Override
@@ -394,7 +418,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAIntegralLiteral(AIntegralLiteral literal) {
         try {
-            types.put(literal.parent(), IntegralTypeToken.fromNode(literal.getIntegralLiteral()));
+            types.put(literal.parent(), IntegralTypeToken.fromLiteral(literal.getIntegralLiteral()));
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
