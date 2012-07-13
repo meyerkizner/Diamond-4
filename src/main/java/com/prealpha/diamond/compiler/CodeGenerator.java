@@ -169,7 +169,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void reclaimLocal(Node context, TypedSymbol local) {
         TypedSymbol popped = stack.pop();
         assert (popped == local);
-        String widthString = String.format("0x%x", local.getType().getWidth());
+        String widthString = String.format("0x%4x", local.getType().getWidth());
         instructions.put(context, "ADD SP " + widthString);
     }
 
