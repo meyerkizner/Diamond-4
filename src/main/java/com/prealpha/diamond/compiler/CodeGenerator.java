@@ -14,13 +14,17 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
+import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
+import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
+import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AStatementTopLevelStatement;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
@@ -39,6 +43,8 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.*;
 
 final class CodeGenerator extends ScopeAwareWalker {
+    private final List<Exception> exceptionBuffer;
+
     private final Map<Node, TypeToken> types;
 
     private final ListMultimap<Node, String> instructions;
@@ -51,22 +57,33 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Deque<TypedSymbol> stack;
 
-    public CodeGenerator(ScopeAwareWalker scopeSource, Map<Node, TypeToken> types) {
+    private final Deque<FlowModifier> flowModifiers;
+
+    private TypedSymbol returnLocation;
+
+    public CodeGenerator(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer, Map<Node, TypeToken> types) {
         super(scopeSource);
+        this.exceptionBuffer = exceptionBuffer;
         this.types = ImmutableMap.copyOf(types);
         instructions = ArrayListMultimap.create();
         labels = Maps.newHashMap();
         topLevelNodes = Lists.newArrayList();
         detachedNodes = Sets.newHashSet();
         stack = Lists.newLinkedList();
+        flowModifiers = Lists.newLinkedList();
     }
 
     @Override
     protected void onExitScope(Node scopeKey) {
-        for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
-            reclaimLocal(scopeKey, local);
-        }
+        assert (getScope() == getScope(scopeKey));
+        reclaimScope(scopeKey, getScope(scopeKey));
         super.onExitScope(scopeKey);
+    }
+
+    private void reclaimScope(Node context, Scope scope) {
+        for (LocalSymbol local : Lists.reverse(scope.getLocals())) {
+            reclaimLocal(context, local);
+        }
     }
 
     @Override
@@ -109,6 +126,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
+    public void inAWhileStatement(AWhileStatement statement) {
+        flowModifiers.push(new WhileFlowModifier(statement));
+    }
+
+    @Override
     public void outAWhileStatement(AWhileStatement statement) {
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
@@ -123,6 +145,13 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement, statement.getBody());
 
         reclaimLocal(statement, pseudoLocal);
+        flowModifiers.pop();
+    }
+
+    @Override
+    public void inAForStatement(AForStatement statement) {
+        super.inAForStatement(statement);
+        flowModifiers.push(new ForFlowModifier(statement));
     }
 
     @Override
@@ -148,7 +177,13 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement, statement.getBody());
 
         reclaimLocal(statement, pseudoLocal);
+        flowModifiers.pop();
         super.outAForStatement(statement);
+    }
+
+    @Override
+    public void inADoStatement(ADoStatement statement) {
+        flowModifiers.push(new DoFlowModifier(statement));
     }
 
     @Override
@@ -157,31 +192,33 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(statement, pseudoLocal);
 
-        // to make break and continue work, we actually have to have the condition first, and then jump around a bit
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
+        inline(statement, statement.getBody());
 
         instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
         inline(statement, statement.getCondition());
-        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
-        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
-
-        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
-        inline(statement, statement.getBody());
+        instructions.put(statement, "IFN " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
 
         reclaimLocal(statement, pseudoLocal);
+        flowModifiers.pop();
+    }
+
+    @Override
+    public void inASwitchStatement(ASwitchStatement statement) {
+        flowModifiers.push(new SwitchFlowModifier(statement));
     }
 
     @Override
     public void outASwitchStatement(ASwitchStatement statement) {
-        try {
-            TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getValue()));
-            declareLocal(statement, pseudoLocal);
+        TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getValue()));
+        declareLocal(statement, pseudoLocal);
 
-            inline(statement, statement.getValue());
+        inline(statement, statement.getValue());
 
-            PCaseGroup defaultCaseGroup = null;
-            for (PCaseGroup caseGroup : statement.getBody()) {
-                for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
+        PCaseGroup defaultCaseGroup = null;
+        for (PCaseGroup caseGroup : statement.getBody()) {
+            for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
+                try {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
@@ -196,32 +233,90 @@ final class CodeGenerator extends ScopeAwareWalker {
                             assert false; // there shouldn't be any other widths
                     }
                     instructions.put(statement, "SET PC " + obtainStartLabel(caseGroup));
-                }
-                if (caseGroup instanceof ADefaultCaseGroup) {
-                    assert (defaultCaseGroup == null);
-                    defaultCaseGroup = caseGroup;
+                } catch (SemanticException sx) {
+                    exceptionBuffer.add(sx);
                 }
             }
-            if (defaultCaseGroup != null) {
-                instructions.put(statement, "SET PC " + obtainStartLabel(defaultCaseGroup));
-            } else if (!statement.getBody().isEmpty()) {
-                instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
+            if (caseGroup instanceof ADefaultCaseGroup) {
+                assert (defaultCaseGroup == null);
+                defaultCaseGroup = caseGroup;
             }
-
-            for (PCaseGroup caseGroup : statement.getBody()) {
-                inline(statement, caseGroup);
-            }
-
-            reclaimLocal(statement, pseudoLocal);
-        } catch (SemanticException sx) {
-            // there should not be new semantic problems at this stage
-            throw new AssertionError(sx);
         }
+        if (defaultCaseGroup != null) {
+            instructions.put(statement, "SET PC " + obtainStartLabel(defaultCaseGroup));
+        } else if (!statement.getBody().isEmpty()) {
+            instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
+        }
+
+        for (PCaseGroup caseGroup : statement.getBody()) {
+            inline(statement, caseGroup);
+        }
+
+        reclaimLocal(statement, pseudoLocal);
+        flowModifiers.pop();
     }
 
     @Override
     public void outADeleteStatement(ADeleteStatement statement) {
         throw new NoHeapException();
+    }
+
+    @Override
+    public void outABreakStatement(ABreakStatement statement) {
+        boolean flag;
+        do {
+            if (flowModifiers.isEmpty()) {
+                exceptionBuffer.add(new SemanticException(statement, "invalid break"));
+                break;
+            }
+            flag = flowModifiers.pop().onBreak(statement);
+        } while (!flag);
+    }
+
+    @Override
+    public void outAContinueStatement(AContinueStatement statement) {
+        boolean flag;
+        do {
+            if (flowModifiers.isEmpty()) {
+                exceptionBuffer.add(new SemanticException(statement, "invalid continue"));
+                break;
+            }
+            flag = flowModifiers.pop().onContinue(statement);
+        } while (!flag);
+    }
+
+    @Override
+    public void outAReturnStatement(AReturnStatement statement) {
+        // evaluate the return expression in a pseudo-local
+        TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getReturnValue()));
+        declareLocal(statement, pseudoLocal);
+
+        inline(statement, statement.getReturnValue());
+
+        // copy the pseudo-local into the return location
+        switch (types.get(statement.getReturnValue()).getWidth()) {
+            case 4:
+                instructions.put(statement, "SET " + lookup(returnLocation, 3) + " " + lookup(pseudoLocal, 3));
+                instructions.put(statement, "SET " + lookup(returnLocation, 2) + " " + lookup(pseudoLocal, 2));
+            case 2:
+                instructions.put(statement, "SET " + lookup(returnLocation, 1) + " " + lookup(pseudoLocal, 1));
+            case 1:
+                instructions.put(statement, "SET " + lookup(returnLocation, 0) + " " + lookup(pseudoLocal, 0));
+                break;
+            default:
+                assert false; // there shouldn't be any other widths
+        }
+
+        reclaimLocal(statement, pseudoLocal);
+
+        boolean flag;
+        do {
+            if (flowModifiers.isEmpty()) {
+                exceptionBuffer.add(new SemanticException(statement, "invalid return"));
+                break;
+            }
+            flag = flowModifiers.pop().onReturn(statement);
+        } while (!flag);
     }
 
     private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
@@ -327,6 +422,167 @@ final class CodeGenerator extends ScopeAwareWalker {
         @Override
         public Set<Modifier> getModifiers() {
             return ImmutableSet.of();
+        }
+    }
+
+    private static interface FlowModifier {
+        boolean onBreak(Node context);
+
+        boolean onContinue(Node context);
+
+        boolean onReturn(Node context);
+    }
+
+    private final class WhileFlowModifier implements FlowModifier {
+        private final AWhileStatement whileStatement;
+
+        public WhileFlowModifier(AWhileStatement whileStatement) {
+            checkNotNull(whileStatement);
+            this.whileStatement = whileStatement;
+        }
+
+        @Override
+        public boolean onBreak(Node context) {
+            while (getScope() != getEnclosingScope(whileStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainEndLabel(whileStatement.getBody()));
+            return true;
+        }
+
+        @Override
+        public boolean onContinue(Node context) {
+            while (getScope() != getEnclosingScope(whileStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainStartLabel(whileStatement.getCondition()));
+            return true;
+        }
+
+        @Override
+        public boolean onReturn(Node context) {
+            return false;
+        }
+    }
+
+    private final class ForFlowModifier implements FlowModifier {
+        private final AForStatement forStatement;
+
+        public ForFlowModifier(AForStatement forStatement) {
+            checkNotNull(forStatement);
+            this.forStatement = forStatement;
+        }
+
+        @Override
+        public boolean onBreak(Node context) {
+            while (getScope() != getEnclosingScope(forStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainEndLabel(forStatement.getBody()));
+            return true;
+        }
+
+        @Override
+        public boolean onContinue(Node context) {
+            while (getScope() != getEnclosingScope(forStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainStartLabel(forStatement.getUpdate()));
+            return true;
+        }
+
+        @Override
+        public boolean onReturn(Node context) {
+            return false;
+        }
+    }
+
+    private final class DoFlowModifier implements FlowModifier {
+        private final ADoStatement doStatement;
+
+        public DoFlowModifier(ADoStatement doStatement) {
+            checkNotNull(doStatement);
+            this.doStatement = doStatement;
+        }
+
+        @Override
+        public boolean onBreak(Node context) {
+            while (getScope() != getEnclosingScope(doStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainEndLabel(doStatement.getCondition()));
+            return true;
+        }
+
+        @Override
+        public boolean onContinue(Node context) {
+            while (getScope() != getEnclosingScope(doStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainStartLabel(doStatement.getCondition()));
+            return true;
+        }
+
+        @Override
+        public boolean onReturn(Node context) {
+            return false;
+        }
+    }
+
+    private final class SwitchFlowModifier implements FlowModifier {
+        private final ASwitchStatement switchStatement;
+
+        public SwitchFlowModifier(ASwitchStatement switchStatement) {
+            checkNotNull(switchStatement);
+            this.switchStatement = switchStatement;
+        }
+
+        @Override
+        public boolean onBreak(Node context) {
+            while (getScope() != getEnclosingScope(switchStatement)) {
+                reclaimScope(context, getScope());
+            }
+            instructions.put(context, "SET PC " + obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
+            return true;
+        }
+
+        @Override
+        public boolean onContinue(Node context) {
+            return false;
+        }
+
+        @Override
+        public boolean onReturn(Node context) {
+            return false;
+        }
+    }
+
+    private final class FunctionFlowModifier implements FlowModifier {
+        private final AFunctionDeclaration functionDeclaration;
+
+        public FunctionFlowModifier(AFunctionDeclaration functionDeclaration) {
+            checkNotNull(functionDeclaration);
+            this.functionDeclaration = functionDeclaration;
+        }
+
+        @Override
+        public boolean onBreak(Node context) {
+            return false;
+        }
+
+        @Override
+        public boolean onContinue(Node context) {
+            return false;
+        }
+
+        @Override
+        public boolean onReturn(Node context) {
+            while (getScope() != getEnclosingScope(functionDeclaration)) {
+                reclaimScope(context, getScope());
+            }
+            reclaimScope(context, getScope());
+            instructions.put(context, "SET PC POP");
+            return true;
         }
     }
 }
