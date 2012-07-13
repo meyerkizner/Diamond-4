@@ -14,13 +14,19 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
+import com.prealpha.diamond.compiler.node.AClassDeclaration;
+import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
+import com.prealpha.diamond.compiler.node.AExpressionStatement;
+import com.prealpha.diamond.compiler.node.AFieldClassStatement;
 import com.prealpha.diamond.compiler.node.AForStatement;
+import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
@@ -29,6 +35,7 @@ import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
+import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PStatement;
@@ -436,5 +443,55 @@ final class CodeGenerator extends ScopeAwareWalker {
             flag = flowModifiers.pop().onReturn(statement);
         } while (!flag);
         inFlowModifier = false;
+    }
+
+    @Override
+    public void outAExpressionStatement(AExpressionStatement statement) {
+        inline(statement, statement.getExpression());
+    }
+
+    @Override
+    public void outABlockStatement(ABlockStatement statement) {
+        for (PStatement enclosedStatement : statement.getStatement()) {
+            inline(statement, enclosedStatement);
+        }
+        super.outABlockStatement(statement);
+    }
+
+    @Override
+    public void outACaseGroup(ACaseGroup caseGroup) {
+        for (PStatement enclosedStatement : caseGroup.getBody()) {
+            inline(caseGroup, enclosedStatement);
+        }
+    }
+
+    @Override
+    public void outADefaultCaseGroup(ADefaultCaseGroup caseGroup) {
+        for (PStatement enclosedStatement : caseGroup.getBody()) {
+            inline(caseGroup, enclosedStatement);
+        }
+    }
+
+    @Override
+    public void outAClassDeclaration(AClassDeclaration classDeclaration) {
+        for (PClassStatement enclosedStatement : classDeclaration.getBody()) {
+            inline(classDeclaration, enclosedStatement);
+        }
+        super.outAClassDeclaration(classDeclaration);
+    }
+
+    @Override
+    public void outAFieldClassStatement(AFieldClassStatement classStatement) {
+        inline(classStatement, classStatement.getFieldDeclaration());
+    }
+
+    @Override
+    public void outAFunctionClassStatement(AFunctionClassStatement classStatement) {
+        inline(classStatement, classStatement.getFunctionDeclaration());
+    }
+
+    @Override
+    public void outAConstructorClassStatement(AConstructorClassStatement classStatement) {
+        inline(classStatement, classStatement.getConstructorDeclaration());
     }
 }
