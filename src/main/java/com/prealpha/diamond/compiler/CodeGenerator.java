@@ -110,7 +110,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         Multimap<PTopLevelStatement, String> instructionsCopy = ImmutableMultimap.copyOf(instructions);
         toReturn.addAll(instructionsCopy.get(mainMethod));
         instructionsCopy.removeAll(mainMethod);
-        toReturn.add(":crash SET PC crash");
+        toReturn.add("BRK");
         toReturn.addAll(instructionsCopy.values());
         return toReturn;
     }
@@ -554,6 +554,13 @@ final class CodeGenerator extends ScopeAwareWalker {
         evaluateParametrizedDeclaration(declaration, "new", declaration.getParameters(), declaration.getBody());
     }
 
+    /*
+     * This method invokes super.onEnterScope(Node) and super.onExitScope(Node) directly, bypassing in particular the
+     * overridden onExitScope(Node) implementation in this class. This is because of the unusual positioning of locals
+     * on the stack within a function declaration. Specifically, the JSR pointer sits between the parameters and the
+     * other locals declared in the scope. This requires us to reclaim each set of locals separately, reclaiming the
+     * JSR pointer in between.
+     */
     private void evaluateParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters, List<PStatement> body) {
         assert stack.isEmpty();
         try {
@@ -576,6 +583,8 @@ final class CodeGenerator extends ScopeAwareWalker {
                 stack.push(thisSymbol);
             }
 
+            super.onEnterScope(declaration);
+
             for (PLocalDeclaration parameterDeclaration : parameters) {
                 inline(parameterDeclaration);
             }
@@ -589,11 +598,17 @@ final class CodeGenerator extends ScopeAwareWalker {
                 throw new NoHeapException();
             }
 
-            onEnterScope(declaration);
             for (PStatement enclosedStatement : body) {
                 inline(enclosedStatement);
             }
-            onExitScope(declaration);
+            // reclaim all locals that are NOT parameters
+            for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
+                if (stack.peek() == jsrPointer) {
+                    break;
+                } else {
+                    reclaimLocal(local);
+                }
+            }
             write("SET PC POP");
             TypedSymbol poppedJsr = stack.pop();
             assert (poppedJsr == jsrPointer);
@@ -602,6 +617,9 @@ final class CodeGenerator extends ScopeAwareWalker {
                 TypedSymbol poppedParameter = stack.pop();
                 assert (poppedParameter == parameter);
             }
+
+            super.onExitScope(declaration);
+
             if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC)) {
                 TypedSymbol poppedThis = stack.pop();
                 assert (poppedThis == thisSymbol);
