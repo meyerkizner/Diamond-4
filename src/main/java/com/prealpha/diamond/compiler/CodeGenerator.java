@@ -32,7 +32,6 @@ import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
-import com.prealpha.diamond.compiler.node.AInclude;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
@@ -42,7 +41,6 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
-import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PStatement;
@@ -473,10 +471,18 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
+    public void inAClassDeclaration(AClassDeclaration classDeclaration) {
+        super.inAClassDeclaration(classDeclaration);
+        assert (thisSymbol == null);
+        thisSymbol = new PseudoLocal(new UserDefinedTypeToken(classDeclaration.getName().getText()));
+    }
+
+    @Override
     public void outAClassDeclaration(AClassDeclaration classDeclaration) {
         for (PClassStatement enclosedStatement : classDeclaration.getBody()) {
             inline(classDeclaration, enclosedStatement);
         }
+        thisSymbol = null;
         super.outAClassDeclaration(classDeclaration);
     }
 
