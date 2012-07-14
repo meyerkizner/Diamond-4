@@ -28,16 +28,21 @@ import com.prealpha.diamond.compiler.node.AFieldClassStatement;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
+import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
+import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
+import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
+import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
+import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.Token;
 
@@ -64,6 +69,8 @@ final class CodeGenerator extends ScopeAwareWalker {
     private final Deque<FlowModifier> flowModifiers;
 
     private TypedSymbol returnLocation;
+
+    private TypedSymbol thisSymbol;
 
     private boolean inFlowModifier;
 
@@ -500,5 +507,87 @@ final class CodeGenerator extends ScopeAwareWalker {
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
+    }
+
+    @Override
+    public void inAFunctionDeclaration(AFunctionDeclaration declaration) {
+        super.inAFunctionDeclaration(declaration);
+        inPFunctionDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+    }
+
+    @Override
+    public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
+        super.inAVoidFunctionDeclaration(declaration);
+        inPFunctionDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+    }
+
+    private void inPFunctionDeclaration(PFunctionDeclaration declaration, String name, List<PLocalDeclaration> parameters) {
+        assert stack.isEmpty();
+        try {
+            List<TypeToken> parameterTypes = Lists.transform(parameters, TypeTokenUtil.getDeclarationFunction());
+            FunctionSymbol symbol = getScope().resolveFunction(name, parameterTypes);
+
+            flowModifiers.push(new FunctionFlowModifier(this, declaration));
+            TypeToken returnType = symbol.getReturnType();
+            if (returnType != null) {
+                returnLocation = new PseudoLocal(symbol.getReturnType());
+                stack.push(returnLocation);
+            }
+            if (!symbol.getModifiers().contains(Modifier.STATIC) && thisSymbol != null) {
+                stack.push(thisSymbol);
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    @Override
+    public void outAFunctionDeclaration(AFunctionDeclaration declaration) {
+        outPFunctionDeclaration(declaration, declaration.getParameters(), declaration.getBody());
+        super.outAFunctionDeclaration(declaration);
+    }
+
+    @Override
+    public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
+        outPFunctionDeclaration(declaration, declaration.getParameters(), declaration.getBody());
+        super.outAVoidFunctionDeclaration(declaration);
+    }
+
+    private void outPFunctionDeclaration(PFunctionDeclaration declaration, List<PLocalDeclaration> parameters, List<PStatement> body) {
+        for (PLocalDeclaration parameterDeclaration : parameters) {
+            inline(declaration, parameterDeclaration);
+        }
+
+        TypedSymbol jsrPointer = new PseudoLocal(IntegralTypeToken.UNSIGNED_SHORT);
+        stack.push(jsrPointer);
+
+        for (PStatement enclosedStatement : body) {
+            inline(declaration, enclosedStatement);
+        }
+        instructions.put(declaration, "SET PC POP");
+        TypedSymbol poppedJsr = stack.pop();
+        assert (poppedJsr == jsrPointer);
+
+        for (PLocalDeclaration parameterDeclaration : Lists.reverse(parameters)) {
+            try {
+                String parameterName = ((ALocalDeclaration) parameterDeclaration).getName().getText();
+                TypedSymbol poppedParameter = stack.pop();
+                assert (poppedParameter == getScope().resolveLocal(parameterName));
+            } catch (SemanticException sx) {
+                exceptionBuffer.add(sx);
+            }
+        }
+        if (stack.contains(thisSymbol)) {
+            TypedSymbol poppedThis = stack.pop();
+            assert (poppedThis == thisSymbol);
+        }
+        if (returnLocation != null) {
+            TypedSymbol poppedReturn = stack.pop();
+            assert (poppedReturn == returnLocation);
+            returnLocation = null;
+        }
+        flowModifiers.pop();
+
+        assert stack.isEmpty();
     }
 }

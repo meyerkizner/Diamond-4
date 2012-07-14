@@ -9,6 +9,7 @@ package com.prealpha.diamond.compiler;
 import com.google.common.base.Function;
 import com.prealpha.diamond.compiler.node.AArrayTypeToken;
 import com.prealpha.diamond.compiler.node.ABooleanTypeToken;
+import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ASignedIntTypeToken;
 import com.prealpha.diamond.compiler.node.ASignedLongTypeToken;
 import com.prealpha.diamond.compiler.node.ASignedShortTypeToken;
@@ -16,9 +17,8 @@ import com.prealpha.diamond.compiler.node.AUnsignedIntTypeToken;
 import com.prealpha.diamond.compiler.node.AUnsignedLongTypeToken;
 import com.prealpha.diamond.compiler.node.AUnsignedShortTypeToken;
 import com.prealpha.diamond.compiler.node.AUserDefinedTypeToken;
+import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PTypeToken;
-
-import javax.annotation.Nullable;
 
 final class TypeTokenUtil {
     public static TypeToken fromNode(PTypeToken node) {
@@ -50,6 +50,15 @@ final class TypeTokenUtil {
             @Override
             public TypeToken apply(TypedSymbol input) {
                 return input.getType();
+            }
+        };
+    }
+
+    public static Function<PLocalDeclaration, TypeToken> getDeclarationFunction() {
+        return new Function<PLocalDeclaration, TypeToken>() {
+            @Override
+            public TypeToken apply(PLocalDeclaration input) {
+                return fromNode(((ALocalDeclaration) input).getType());
             }
         };
     }
