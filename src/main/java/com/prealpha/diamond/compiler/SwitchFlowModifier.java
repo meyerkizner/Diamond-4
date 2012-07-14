@@ -7,7 +7,6 @@
 package com.prealpha.diamond.compiler;
 
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
-import com.prealpha.diamond.compiler.node.Node;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -24,21 +23,21 @@ final class SwitchFlowModifier implements FlowModifier {
     }
 
     @Override
-    public boolean onBreak(Node context) {
+    public boolean onBreak() {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(switchStatement)) {
-            codeGenerator.reclaimScope(codeGenerator.getScope());
+            codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
         return true;
     }
 
     @Override
-    public boolean onContinue(Node context) {
+    public boolean onContinue() {
         return false;
     }
 
     @Override
-    public boolean onReturn(Node context) {
+    public boolean onReturn() {
         return false;
     }
 }

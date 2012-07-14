@@ -7,7 +7,6 @@
 package com.prealpha.diamond.compiler;
 
 import com.prealpha.diamond.compiler.node.ADoStatement;
-import com.prealpha.diamond.compiler.node.Node;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -24,25 +23,25 @@ final class DoFlowModifier implements FlowModifier {
     }
 
     @Override
-    public boolean onBreak(Node context) {
+    public boolean onBreak() {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
-            codeGenerator.reclaimScope(codeGenerator.getScope());
+            codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(doStatement.getCondition()));
         return true;
     }
 
     @Override
-    public boolean onContinue(Node context) {
+    public boolean onContinue() {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
-            codeGenerator.reclaimScope(codeGenerator.getScope());
+            codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(doStatement.getCondition()));
         return true;
     }
 
     @Override
-    public boolean onReturn(Node context) {
+    public boolean onReturn() {
         return false;
     }
 }

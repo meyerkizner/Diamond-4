@@ -6,12 +6,10 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.diamond.compiler.node.Node;
-
 interface FlowModifier {
-    boolean onBreak(Node context);
+    boolean onBreak();
 
-    boolean onContinue(Node context);
+    boolean onContinue();
 
-    boolean onReturn(Node context);
+    boolean onReturn();
 }

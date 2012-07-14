@@ -79,8 +79,6 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private TypedSymbol thisSymbol;
 
-    private boolean inFlowModifier;
-
     public CodeGenerator(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer, Map<Node, TypeToken> types) {
         super(scopeSource);
         this.exceptionBuffer = exceptionBuffer;
@@ -124,9 +122,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         super.onExitScope(scopeKey);
     }
 
-    void reclaimScope(Scope scope) {
+    private void reclaimScope(Scope scope) {
         for (LocalSymbol local : Lists.reverse(scope.getLocals())) {
             reclaimLocal(local);
+        }
+    }
+
+    void reclaimScope() {
+        for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
+            doReclaimLocal(local);
         }
     }
 
@@ -138,10 +142,12 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void reclaimLocal(TypedSymbol local) {
-        if (!inFlowModifier) {
-            TypedSymbol popped = stack.pop();
-            assert (popped == local);
-        }
+        TypedSymbol popped = stack.pop();
+        assert (popped == local);
+        doReclaimLocal(local);
+    }
+
+    private void doReclaimLocal(TypedSymbol local) {
         String widthString = String.format("0x%4x", local.getType().getWidth());
         write("ADD SP " + widthString);
     }
@@ -405,30 +411,26 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseABreakStatement(ABreakStatement statement) {
-        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid break"));
                 break;
             }
-            flag = flowModifiers.pop().onBreak(statement);
+            flag = flowModifiers.pop().onBreak();
         } while (!flag);
-        inFlowModifier = false;
     }
 
     @Override
     public void caseAContinueStatement(AContinueStatement statement) {
-        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid continue"));
                 break;
             }
-            flag = flowModifiers.pop().onContinue(statement);
+            flag = flowModifiers.pop().onContinue();
         } while (!flag);
-        inFlowModifier = true;
     }
 
     @Override
@@ -456,16 +458,14 @@ final class CodeGenerator extends ScopeAwareWalker {
         reclaimLocal(expressionResult);
         expressionResult = null;
 
-        inFlowModifier = true;
         boolean flag;
         do {
             if (flowModifiers.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid return"));
                 break;
             }
-            flag = flowModifiers.pop().onReturn(statement);
+            flag = flowModifiers.pop().onReturn();
         } while (!flag);
-        inFlowModifier = false;
     }
 
     @Override
@@ -565,7 +565,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 symbol = getScope().resolveFunction(name, parameterTypes);
             }
 
-            flowModifiers.push(new FunctionFlowModifier(this, declaration));
+            flowModifiers.push(new ParametrizedFlowModifier(this, declaration));
 
             TypeToken returnType = symbol.getReturnType();
             if (returnType != null) {
