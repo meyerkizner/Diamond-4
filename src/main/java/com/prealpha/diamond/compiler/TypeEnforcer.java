@@ -6,8 +6,9 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.google.common.base.Predicate;
+import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
@@ -95,8 +96,6 @@ import com.prealpha.diamond.compiler.node.PTypeToken;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.math.BigInteger;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -186,38 +185,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
             return null;
-        }
-    }
-
-    private FieldSymbol resolveFieldFromType(TypeToken type, String fieldName, final boolean isStatic) throws SemanticException {
-        if (type instanceof UserDefinedTypeToken) {
-            ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-            Scope classScope = getScope(classSymbol.getDeclaration());
-            Scope filteredScope = new Scope(classScope, new Predicate<Symbol>() {
-                @Override
-                public boolean apply(Symbol input) {
-                    return (isStatic == input.getModifiers().contains(Modifier.STATIC));
-                }
-            });
-            return filteredScope.resolveField(fieldName);
-        } else {
-            throw new SemanticException("built-in types do not currently support any fields");
-        }
-    }
-
-    private Collection<FunctionSymbol> resolveFunctionFromType(TypeToken type, String functionName, final boolean isStatic) throws SemanticException {
-        if (type instanceof UserDefinedTypeToken) {
-            ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-            Scope classScope = getScope(classSymbol.getDeclaration());
-            Scope filteredScope = new Scope(classScope, new Predicate<Symbol>() {
-                @Override
-                public boolean apply(Symbol input) {
-                    return (isStatic == input.getModifiers().contains(Modifier.STATIC));
-                }
-            });
-            return filteredScope.resolveFunction(functionName);
-        } else {
-            throw new SemanticException("built-in types do not currently support any functions");
         }
     }
 
@@ -388,25 +355,32 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
         try {
             PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
-            TypedSymbol symbol;
+            TypeToken type;
+            String fieldName;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
                 PPrimaryExpression expression = expressionName.getTarget();
-                TypeToken expressionType = types.get(expression);
-                symbol = resolveFieldFromType(expressionType, expressionName.getName().getText(), false);
+                type = types.get(expression);
+                fieldName = expressionName.getName().getText();
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
                 PTypeToken rawTarget = typeName.getTarget();
                 if (rawTarget != null) {
-                    TypeToken target = TypeTokenUtil.fromNode(rawTarget);
-                    symbol = resolveFieldFromType(target, typeName.getName().getText(), true);
+                    type = TypeTokenUtil.fromNode(rawTarget);
+                    fieldName = typeName.getName().getText();
                 } else {
                     throw new SemanticException(primaryExpression, "there are no fields in the global scope");
                 }
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
-            types.put(primaryExpression, symbol.getType());
+            if (type instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+                Scope classScope = getScope(classSymbol.getDeclaration());
+                types.put(primaryExpression, classScope.resolveField(fieldName).getType());
+            } else {
+                throw new SemanticException("built-in types do not currently support any fields");
+            }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -450,8 +424,9 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation invocation) {
         try {
-            Collection<FunctionSymbol> symbols = getScope().resolveFunction(invocation.getFunctionName().getText());
-            enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            types.put(invocation.parent(), symbol.getReturnType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -471,26 +446,33 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAQualifiedFunctionInvocation(AQualifiedFunctionInvocation invocation) {
         try {
             PQualifiedName qualifiedName = invocation.getFunctionName();
-            Collection<FunctionSymbol> symbols;
+            TypeToken type;
+            String functionName;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                PPrimaryExpression expression = expressionName.getTarget();
-                TypeToken expressionType = types.get(expression);
-                symbols = resolveFunctionFromType(expressionType, expressionName.getName().getText(), false);
+                type = types.get(expressionName.getTarget());
+                functionName = expressionName.getName().getText();
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                PTypeToken rawTarget = typeName.getTarget();
-                if (rawTarget != null) {
-                    TypeToken target = TypeTokenUtil.fromNode(rawTarget);
-                    symbols = resolveFunctionFromType(target, typeName.getName().getText(), true);
-                } else {
-                    Scope scope = getScope(null);
-                    symbols = scope.resolveFunction(typeName.getName().getText());
-                }
+                type = (typeName.getTarget() == null ? null : TypeTokenUtil.fromNode(typeName.getTarget()));
+                functionName = typeName.getName().getText();
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
-            enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
+            if (type == null || type instanceof UserDefinedTypeToken) {
+                Scope scope;
+                if (type != null) {
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
+                } else {
+                    scope = getScope(null);
+                }
+                List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+                FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
+                types.put(invocation.parent(), symbol.getReturnType());
+            } else {
+                throw new SemanticException("built-in types do not currently support any functions");
+            }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -511,36 +493,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
             } else {
                 scope = getScope();
             }
-            Collection<ConstructorSymbol> symbols = scope.resolveConstructor();
-            enforceParametrizedInvocation(invocation, symbols, invocation.getParameters());
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
+            types.put(invocation.parent(), symbol.getReturnType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
-        }
-    }
-
-    private void enforceParametrizedInvocation(Node invocation, Collection<? extends ParametrizedSymbol> symbols, List<PExpression> parameters) throws SemanticException {
-        Iterator<? extends ParametrizedSymbol> iterator = symbols.iterator();
-        while (iterator.hasNext()) {
-            ParametrizedSymbol symbol = iterator.next();
-            if (symbol.getParameters().size() == parameters.size()) {
-                for (int i = 0; i < symbol.getParameters().size(); i++) {
-                    TypeToken expectedType = symbol.getParameters().get(i).getType();
-                    TypeToken actualType = types.get(parameters.get(i));
-                    if (!actualType.isAssignableTo(expectedType)) {
-                        iterator.remove();
-                        break;
-                    }
-                }
-            } else {
-                iterator.remove();
-            }
-        }
-        if (symbols.size() > 1) {
-            throw new SemanticException(invocation, "ambiguous function invocation");
-        } else if (symbols.size() == 0) {
-            throw new SemanticException(invocation, "cannot resolve function with appropriate parameters");
-        } else {
-            types.put(invocation.parent(), symbols.iterator().next().getReturnType());
         }
     }
 

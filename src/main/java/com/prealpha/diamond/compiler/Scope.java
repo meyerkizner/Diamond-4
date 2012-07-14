@@ -6,16 +6,13 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,25 +20,13 @@ import java.util.Map;
 import java.util.Set;
 
 final class Scope {
-    private static final Function<ParametrizedSymbol, List<TypeToken>> PARAMETER_TYPES = new Function<ParametrizedSymbol, List<TypeToken>>() {
-        @Override
-        public List<TypeToken> apply(ParametrizedSymbol parametrizedSymbol) {
-            return Lists.transform(parametrizedSymbol.getParameters(), new Function<LocalSymbol, TypeToken>() {
-                @Override
-                public TypeToken apply(LocalSymbol input) {
-                    return input.getType();
-                }
-            });
-        }
-    };
-
     private final Scope parent;
 
     private final Map<String, ClassSymbol> classSymbols;
 
-    private final Multimap<String, FunctionSymbol> functionSymbols;
+    private final Table<String, List<TypeToken>, FunctionSymbol> functionSymbols;
 
-    private final Set<ConstructorSymbol> constructorSymbols;
+    private final Map<List<TypeToken>, ConstructorSymbol> constructorSymbols;
 
     private final Map<String, FieldSymbol> fieldSymbols;
 
@@ -50,19 +35,10 @@ final class Scope {
     Scope(Scope parent) {
         this.parent = parent;
         classSymbols = Maps.newHashMap();
-        functionSymbols = HashMultimap.create();
-        constructorSymbols = Sets.newHashSet();
+        functionSymbols = HashBasedTable.create();
+        constructorSymbols = Maps.newHashMap();
         fieldSymbols = Maps.newLinkedHashMap();
         localSymbols = Maps.newLinkedHashMap();
-    }
-
-    Scope(Scope unfiltered, Predicate<Symbol> predicate) {
-        this.parent = unfiltered.parent;
-        classSymbols = Maps.filterValues(unfiltered.classSymbols, predicate);
-        functionSymbols = Multimaps.filterValues(unfiltered.functionSymbols, predicate);
-        constructorSymbols = Sets.filter(unfiltered.constructorSymbols, predicate);
-        fieldSymbols = Maps.filterValues(unfiltered.fieldSymbols, predicate);
-        localSymbols = Maps.filterValues(unfiltered.localSymbols, predicate);
     }
 
     Scope getParent() {
@@ -90,20 +66,30 @@ final class Scope {
 
     void register(FunctionSymbol functionSymbol) throws SemanticException {
         String name = functionSymbol.getName();
-        if (functionSymbols.containsKey(name)) {
-            Collection<FunctionSymbol> overloaded = functionSymbols.get(name);
-            for (FunctionSymbol function : overloaded) {
-                if (PARAMETER_TYPES.apply(functionSymbol).equals(PARAMETER_TYPES.apply(function))) {
-                    throw new SemanticException(String.format("duplicate function symbol \"%s\"", name));
-                }
-            }
+        List<TypeToken> parameters = Lists.transform(functionSymbol.getParameters(), TypeTokenUtil.getSymbolFunction());
+        if (!functionSymbols.contains(name, parameters)) {
+            functionSymbols.put(name, parameters, functionSymbol);
+        } else {
+            throw new SemanticException(String.format("duplicate function symbol \"%s%s\"", name, parameters));
         }
-        functionSymbols.put(name, functionSymbol);
     }
 
-    public Collection<FunctionSymbol> resolveFunction(String name) throws SemanticException {
-        if (functionSymbols.containsKey(name)) {
-            return functionSymbols.get(name);
+    public FunctionSymbol resolveFunction(String name, List<? extends TypeToken> parameterTypes) throws SemanticException {
+        Set<FunctionSymbol> matches = resolveParametrized(functionSymbols.row(name).values(), parameterTypes);
+        if (matches.size() == 1) {
+            return matches.iterator().next();
+        } else if (matches.size() > 1) {
+            throw new SemanticException(String.format("ambiguous function symbol \"%s%s\"", name, parameterTypes));
+        } else if (parent != null) {
+            return parent.resolveFunction(name, parameterTypes);
+        } else {
+            throw new SemanticException(String.format("cannot resolve function symbol \"%s%s\"", name, parameterTypes));
+        }
+    }
+
+    public Map<List<TypeToken>, FunctionSymbol> resolveFunction(String name) throws SemanticException {
+        if (functionSymbols.containsRow(name)) {
+            return functionSymbols.row(name);
         } else if (parent != null) {
             return parent.resolveFunction(name);
         } else {
@@ -112,22 +98,53 @@ final class Scope {
     }
 
     void register(ConstructorSymbol constructorSymbol) throws SemanticException {
-        for (ConstructorSymbol constructor : constructorSymbols) {
-            if (PARAMETER_TYPES.apply(constructorSymbol).equals(PARAMETER_TYPES.apply(constructor))) {
-                throw new SemanticException("duplicate constructor");
-            }
+        List<TypeToken> parameters = Lists.transform(constructorSymbol.getParameters(), TypeTokenUtil.getSymbolFunction());
+        if (!constructorSymbols.containsKey(parameters)) {
+            constructorSymbols.put(parameters, constructorSymbol);
+        } else {
+            throw new SemanticException(String.format("duplicate constructor \"new%s\"", parameters));
         }
-        constructorSymbols.add(constructorSymbol);
     }
 
-    public Collection<ConstructorSymbol> resolveConstructor() throws SemanticException {
+    public ConstructorSymbol resolveConstructor(List<? extends TypeToken> parameterTypes) throws SemanticException {
+        Set<ConstructorSymbol> matches = resolveParametrized(constructorSymbols.values(), parameterTypes);
+        if (matches.size() == 1) {
+            return matches.iterator().next();
+        } else if (matches.size() > 1) {
+            throw new SemanticException(String.format("ambiguous constructor symbol \"new%s\"", parameterTypes));
+        } else if (parent != null) {
+            return parent.resolveConstructor(parameterTypes);
+        } else {
+            throw new SemanticException(String.format("cannot resolve constructor symbol \"new%s\"", parameterTypes));
+        }
+    }
+
+    public Map<List<TypeToken>, ConstructorSymbol> resolveConstructor() throws SemanticException {
         if (!constructorSymbols.isEmpty()) {
-            return ImmutableSet.copyOf(constructorSymbols);
+            return ImmutableMap.copyOf(constructorSymbols);
         } else if (parent != null) {
             return parent.resolveConstructor();
         } else {
-            throw new SemanticException("cannot resolve constructor");
+            throw new SemanticException("cannot resolve constructor symbol \"new\"");
         }
+    }
+
+    private static <T extends ParametrizedSymbol> Set<T> resolveParametrized(Collection<T> symbols, List<? extends TypeToken> parameterTypes) {
+        Set<T> matches = Sets.newHashSet();
+        for (T symbol : symbols) {
+            int matchCount = 0;
+            for (int i = 0; i < parameterTypes.size(); i++) {
+                TypeToken expectedType = symbol.getParameters().get(i).getType();
+                TypeToken actualType = parameterTypes.get(i);
+                if (actualType.isAssignableTo(expectedType)) {
+                    matchCount++;
+                }
+            }
+            if (matchCount == parameterTypes.size()) {
+                matches.add(symbol);
+            }
+        }
+        return matches;
     }
 
     void register(FieldSymbol fieldSymbol) throws SemanticException {

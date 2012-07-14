@@ -6,6 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.google.common.base.Function;
 import com.prealpha.diamond.compiler.node.AArrayTypeToken;
 import com.prealpha.diamond.compiler.node.ABooleanTypeToken;
 import com.prealpha.diamond.compiler.node.ASignedIntTypeToken;
@@ -16,6 +17,8 @@ import com.prealpha.diamond.compiler.node.AUnsignedLongTypeToken;
 import com.prealpha.diamond.compiler.node.AUnsignedShortTypeToken;
 import com.prealpha.diamond.compiler.node.AUserDefinedTypeToken;
 import com.prealpha.diamond.compiler.node.PTypeToken;
+
+import javax.annotation.Nullable;
 
 final class TypeTokenUtil {
     public static TypeToken fromNode(PTypeToken node) {
@@ -40,6 +43,15 @@ final class TypeTokenUtil {
         } else {
             throw new UnsupportedOperationException("unknown flavor of type token");
         }
+    }
+
+    public static Function<TypedSymbol, TypeToken> getSymbolFunction() {
+        return new Function<TypedSymbol, TypeToken>() {
+            @Override
+            public TypeToken apply(TypedSymbol input) {
+                return input.getType();
+            }
+        };
     }
 
     private TypeTokenUtil() {
