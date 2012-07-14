@@ -8,16 +8,18 @@ package com.prealpha.diamond.compiler;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Multimap;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
+import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AContinueStatement;
@@ -30,6 +32,7 @@ import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.AFunctionTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
@@ -41,9 +44,11 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
+import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PStatement;
+import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.Token;
 
 import java.util.Deque;
@@ -58,15 +63,15 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Map<Node, TypeToken> types;
 
-    private final ListMultimap<Node, String> instructions;
-
     private final Map<Node, String> labels;
 
-    private final Set<Node> detachedNodes;
+    private final ListMultimap<PTopLevelStatement, String> instructions;
 
     private final Deque<TypedSymbol> stack;
 
     private final Deque<FlowModifier> flowModifiers;
+
+    private PTopLevelStatement context;
 
     private TypedSymbol expressionResult;
 
@@ -74,43 +79,65 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private TypedSymbol thisSymbol;
 
-    /*
-     * TODO: this variable is symptomatic of some serious problems in the overall design, I think
-     */
     private boolean inFlowModifier;
 
     public CodeGenerator(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer, Map<Node, TypeToken> types) {
         super(scopeSource);
         this.exceptionBuffer = exceptionBuffer;
         this.types = ImmutableMap.copyOf(types);
-        instructions = ArrayListMultimap.create();
         labels = Maps.newHashMap();
-        detachedNodes = Sets.newHashSet();
+        instructions = ArrayListMultimap.create();
         stack = Lists.newLinkedList();
         flowModifiers = Lists.newLinkedList();
+    }
+
+    public List<String> getInstructions() throws SemanticException {
+        PTopLevelStatement mainMethod = null;
+        for (PTopLevelStatement topLevelStatement : instructions.keySet()) {
+            if (topLevelStatement instanceof AFunctionTopLevelStatement) {
+                PFunctionDeclaration functionDeclaration = ((AFunctionTopLevelStatement) topLevelStatement).getFunctionDeclaration();
+                if (functionDeclaration instanceof AVoidFunctionDeclaration) {
+                    AVoidFunctionDeclaration voidFunctionDeclaration = (AVoidFunctionDeclaration) functionDeclaration;
+                    if (voidFunctionDeclaration.getName().getText().equals("main") && voidFunctionDeclaration.getParameters().isEmpty()) {
+                        mainMethod = topLevelStatement;
+                    }
+                }
+            }
+        }
+        if (mainMethod == null) {
+            throw new SemanticException("no main method located");
+        }
+
+        List<String> toReturn = Lists.newArrayList();
+        Multimap<PTopLevelStatement, String> instructionsCopy = ImmutableMultimap.copyOf(instructions);
+        toReturn.addAll(instructionsCopy.get(mainMethod));
+        instructionsCopy.removeAll(mainMethod);
+        toReturn.add(":crash SET PC crash");
+        toReturn.addAll(instructionsCopy.values());
+        return toReturn;
     }
 
     @Override
     protected void onExitScope(Node scopeKey) {
         assert (getScope() == getScope(scopeKey));
-        reclaimScope(scopeKey, getScope(scopeKey));
+        reclaimScope(getScope(scopeKey));
         super.onExitScope(scopeKey);
     }
 
-    void reclaimScope(Node context, Scope scope) {
+    void reclaimScope(Scope scope) {
         for (LocalSymbol local : Lists.reverse(scope.getLocals())) {
-            reclaimLocal(context, local);
+            reclaimLocal(local);
         }
     }
 
-    private void declareLocal(Node context, TypedSymbol local) {
+    private void declareLocal(TypedSymbol local) {
         stack.push(local);
         for (int i = 0; i < local.getType().getWidth(); i++) {
             instructions.put(context, "SET PUSH 0x0000");
         }
     }
 
-    private void reclaimLocal(Node context, TypedSymbol local) {
+    private void reclaimLocal(TypedSymbol local) {
         if (!inFlowModifier) {
             TypedSymbol popped = stack.pop();
             assert (popped == local);
@@ -146,13 +173,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         return "end_" + labels.get(node);
     }
 
-    /*
-     * Only use this on things that will exit with the stack in the same state as it entered; because none of this
-     * updates the stack as necessary. Generates labels if they do not already exist for subject.
-     */
-    private void inline(Node context, Node subject) {
+    private void inline(Node subject) {
         instructions.put(context, ":" + obtainStartLabel(subject));
-        instructions.putAll(context, instructions.get(subject));
+        subject.apply(this);
         instructions.put(context, ":" + obtainEndLabel(subject));
     }
 
@@ -174,7 +197,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    void jumpTo(Node context, String label) {
+    void jumpTo(String label) {
         instructions.put(context, "SET PC " + label);
     }
 
@@ -203,128 +226,125 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAIfThenStatement(AIfThenStatement statement) {
+    public void caseAClassTopLevelStatement(AClassTopLevelStatement topLevelStatement) {
+        assert stack.isEmpty();
+        context = topLevelStatement;
+        inline(topLevelStatement.getClassDeclaration());
+        assert stack.isEmpty();
+    }
+
+    @Override
+    public void caseAFunctionTopLevelStatement(AFunctionTopLevelStatement topLevelStatement) {
+        assert stack.isEmpty();
+        context = topLevelStatement;
+        inline(topLevelStatement.getFunctionDeclaration());
+        assert stack.isEmpty();
+    }
+
+    @Override
+    public void caseAIfThenStatement(AIfThenStatement statement) {
         evaluateIfThenElse(statement, statement.getCondition(), statement.getThen(), null);
     }
 
     @Override
-    public void outAIfThenElseStatement(AIfThenElseStatement statement) {
+    public void caseAIfThenElseStatement(AIfThenElseStatement statement) {
         evaluateIfThenElse(statement, statement.getCondition(), statement.getThen(), statement.getElse());
     }
 
     private void evaluateIfThenElse(Node statement, PExpression condition, PStatement thenBody, PStatement elseBody) {
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
-        inline(statement, condition);
+        inline(condition);
 
-        instructions.put(statement, "IFN POP 0x0000");
-        instructions.put(statement, "SET PC " + obtainStartLabel(thenBody));
+        instructions.put(context, "IFN POP 0x0000");
+        instructions.put(context, "SET PC " + obtainStartLabel(thenBody));
         TypedSymbol popped = stack.pop();
         assert (popped == expressionResult);
         expressionResult = null;
 
         if (elseBody != null) {
-            instructions.put(statement, "SET PC " + obtainStartLabel(elseBody));
-            instructions.put(thenBody, "SET PC " + obtainEndLabel(statement));
-            inline(statement, thenBody);
-            inline(statement, elseBody);
-        } else {
-            instructions.put(statement, "SET PC " + obtainEndLabel(statement));
-            inline(statement, thenBody);
+            inline(elseBody);
         }
+        instructions.put(context, "SET PC " + obtainEndLabel(statement));
+        inline(thenBody);
     }
 
     @Override
-    public void inAWhileStatement(AWhileStatement statement) {
+    public void caseAWhileStatement(AWhileStatement statement) {
         flowModifiers.push(new WhileFlowModifier(this, statement));
-    }
-
-    @Override
-    public void outAWhileStatement(AWhileStatement statement) {
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
-        inline(statement, statement.getCondition());
+        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        inline(statement.getCondition());
 
-        instructions.put(statement, "IFE " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
+        instructions.put(context, "IFE " + lookup(expressionResult, 0) + " 0x0000");
+        instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody()));
 
-        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
-        inline(statement, statement.getBody());
+        inline(statement.getBody());
+        instructions.put(context, "SET PC " + obtainStartLabel(statement.getCondition()));
 
-        reclaimLocal(statement, expressionResult);
+        reclaimLocal(expressionResult);
         expressionResult = null;
         flowModifiers.pop();
     }
 
     @Override
-    public void inAForStatement(AForStatement statement) {
+    public void caseAForStatement(AForStatement statement) {
         super.inAForStatement(statement);
         flowModifiers.push(new ForFlowModifier(this, statement));
-    }
 
-    @Override
-    public void outAForStatement(AForStatement statement) {
-        inline(statement, statement.getInit());
+        inline(statement.getInit());
 
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
         // we actually want the update on top, so skip to the condition
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getCondition()));
+        instructions.put(context, "SET PC " + obtainStartLabel(statement.getCondition()));
 
-        inline(statement, statement.getUpdate());
+        inline(statement.getUpdate());
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
-        inline(statement, statement.getCondition());
+        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        inline(statement.getCondition());
 
-        instructions.put(statement, "IFE " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
+        instructions.put(context, "IFE " + lookup(expressionResult, 0) + " 0x0000");
+        instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody()));
 
-        instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getUpdate()));
-        inline(statement, statement.getBody());
+        inline(statement.getBody());
+        instructions.put(context, "SET PC " + obtainStartLabel(statement.getUpdate()));
 
-        reclaimLocal(statement, expressionResult);
+        reclaimLocal(expressionResult);
         expressionResult = null;
         flowModifiers.pop();
         super.outAForStatement(statement);
     }
 
     @Override
-    public void inADoStatement(ADoStatement statement) {
+    public void caseADoStatement(ADoStatement statement) {
         flowModifiers.push(new DoFlowModifier(this, statement));
-    }
-
-    @Override
-    public void outADoStatement(ADoStatement statement) {
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
-        inline(statement, statement.getBody());
+        inline(statement.getBody());
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
-        inline(statement, statement.getCondition());
-        instructions.put(statement, "IFN " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
+        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        inline(statement.getCondition());
+        instructions.put(context, "IFN " + lookup(expressionResult, 0) + " 0x0000");
+        instructions.put(context, "SET PC " + obtainStartLabel(statement.getBody()));
 
-        reclaimLocal(statement, expressionResult);
+        reclaimLocal(expressionResult);
         expressionResult = null;
         flowModifiers.pop();
     }
 
     @Override
-    public void inASwitchStatement(ASwitchStatement statement) {
+    public void caseASwitchStatement(ASwitchStatement statement) {
         flowModifiers.push(new SwitchFlowModifier(this, statement));
-    }
-
-    @Override
-    public void outASwitchStatement(ASwitchStatement statement) {
         expressionResult = new PseudoLocal(types.get(statement.getValue()));
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
-        inline(statement, statement.getValue());
+        inline(statement.getValue());
 
         PCaseGroup defaultCaseGroup = null;
         for (PCaseGroup caseGroup : statement.getBody()) {
@@ -333,17 +353,17 @@ final class CodeGenerator extends ScopeAwareWalker {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
+                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
+                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
                         case 2:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
+                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
+                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
                     }
-                    instructions.put(statement, "SET PC " + obtainStartLabel(caseGroup));
+                    instructions.put(context, "SET PC " + obtainStartLabel(caseGroup));
                 } catch (SemanticException sx) {
                     exceptionBuffer.add(sx);
                 }
@@ -354,16 +374,16 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
         }
         if (defaultCaseGroup != null) {
-            instructions.put(statement, "SET PC " + obtainStartLabel(defaultCaseGroup));
+            instructions.put(context, "SET PC " + obtainStartLabel(defaultCaseGroup));
         } else if (!statement.getBody().isEmpty()) {
-            instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
+            instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
         }
 
         for (PCaseGroup caseGroup : statement.getBody()) {
-            inline(statement, caseGroup);
+            inline(caseGroup);
         }
 
-        reclaimLocal(statement, expressionResult);
+        reclaimLocal(expressionResult);
         expressionResult = null;
         flowModifiers.pop();
     }
@@ -379,12 +399,12 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void outADeleteStatement(ADeleteStatement statement) {
+    public void caseADeleteStatement(ADeleteStatement statement) {
         throw new NoHeapException();
     }
 
     @Override
-    public void outABreakStatement(ABreakStatement statement) {
+    public void caseABreakStatement(ABreakStatement statement) {
         inFlowModifier = true;
         boolean flag;
         do {
@@ -398,7 +418,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAContinueStatement(AContinueStatement statement) {
+    public void caseAContinueStatement(AContinueStatement statement) {
         inFlowModifier = true;
         boolean flag;
         do {
@@ -412,28 +432,28 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAReturnStatement(AReturnStatement statement) {
+    public void caseAReturnStatement(AReturnStatement statement) {
         // evaluate the return expression
         expressionResult = new PseudoLocal(types.get(statement.getReturnValue()));
-        declareLocal(statement, expressionResult);
+        declareLocal(expressionResult);
 
-        inline(statement, statement.getReturnValue());
+        inline(statement.getReturnValue());
 
         // copy the pseudo-local into the return location
         switch (types.get(statement.getReturnValue()).getWidth()) {
             case 4:
-                instructions.put(statement, "SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
-                instructions.put(statement, "SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
+                instructions.put(context, "SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
+                instructions.put(context, "SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
             case 2:
-                instructions.put(statement, "SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
+                instructions.put(context, "SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
             case 1:
-                instructions.put(statement, "SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
+                instructions.put(context, "SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
                 break;
             default:
                 assert false; // there shouldn't be any other widths
         }
 
-        reclaimLocal(statement, expressionResult);
+        reclaimLocal(expressionResult);
         expressionResult = null;
 
         inFlowModifier = true;
@@ -449,72 +469,69 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAExpressionStatement(AExpressionStatement statement) {
-        inline(statement, statement.getExpression());
+    public void caseAExpressionStatement(AExpressionStatement statement) {
+        inline(statement.getExpression());
     }
 
     @Override
-    public void outABlockStatement(ABlockStatement statement) {
+    public void caseABlockStatement(ABlockStatement statement) {
+        super.inABlockStatement(statement);
         for (PStatement enclosedStatement : statement.getStatement()) {
-            inline(statement, enclosedStatement);
+            inline(enclosedStatement);
         }
         super.outABlockStatement(statement);
     }
 
     @Override
-    public void outACaseGroup(ACaseGroup caseGroup) {
+    public void caseACaseGroup(ACaseGroup caseGroup) {
         for (PStatement enclosedStatement : caseGroup.getBody()) {
-            inline(caseGroup, enclosedStatement);
+            inline(enclosedStatement);
         }
     }
 
     @Override
-    public void outADefaultCaseGroup(ADefaultCaseGroup caseGroup) {
+    public void caseADefaultCaseGroup(ADefaultCaseGroup caseGroup) {
         for (PStatement enclosedStatement : caseGroup.getBody()) {
-            inline(caseGroup, enclosedStatement);
+            inline(enclosedStatement);
         }
     }
 
     @Override
-    public void inAClassDeclaration(AClassDeclaration classDeclaration) {
+    public void caseAClassDeclaration(AClassDeclaration classDeclaration) {
         super.inAClassDeclaration(classDeclaration);
         assert (thisSymbol == null);
         thisSymbol = new PseudoLocal(new UserDefinedTypeToken(classDeclaration.getName().getText()));
-    }
-
-    @Override
-    public void outAClassDeclaration(AClassDeclaration classDeclaration) {
         for (PClassStatement enclosedStatement : classDeclaration.getBody()) {
-            inline(classDeclaration, enclosedStatement);
+            inline(enclosedStatement);
         }
         thisSymbol = null;
         super.outAClassDeclaration(classDeclaration);
     }
 
     @Override
-    public void outAFieldClassStatement(AFieldClassStatement classStatement) {
-        inline(classStatement, classStatement.getFieldDeclaration());
+    public void caseAFieldClassStatement(AFieldClassStatement classStatement) {
+        inline(classStatement.getFieldDeclaration());
     }
 
     @Override
-    public void outAFunctionClassStatement(AFunctionClassStatement classStatement) {
-        inline(classStatement, classStatement.getFunctionDeclaration());
+    public void caseAFunctionClassStatement(AFunctionClassStatement classStatement) {
+        inline(classStatement.getFunctionDeclaration());
     }
 
     @Override
-    public void outAConstructorClassStatement(AConstructorClassStatement classStatement) {
-        inline(classStatement, classStatement.getConstructorDeclaration());
+    public void caseAConstructorClassStatement(AConstructorClassStatement classStatement) {
+        inline(classStatement.getConstructorDeclaration());
     }
 
     @Override
-    public void outAFieldDeclaration(AFieldDeclaration declaration) {
+    public void caseAFieldDeclaration(AFieldDeclaration declaration) {
         try {
             FieldSymbol symbol = getScope().resolveField(declaration.getName().getText());
             if (symbol.getModifiers().contains(Modifier.STATIC)) {
                 generateLabel(declaration);
                 for (int i = 0; i < symbol.getType().getWidth(); i++) {
-                    instructions.put(declaration, String.format(":%d_%s", i, labels.get(declaration)));
-                    instructions.put(declaration, "DAT 0x0000");
+                    instructions.put(context, String.format(":%d_%s", i, labels.get(declaration)));
+                    instructions.put(context, "DAT 0x0000");
                 }
             }
         } catch (SemanticException sx) {
@@ -523,24 +540,21 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void inAFunctionDeclaration(AFunctionDeclaration declaration) {
-        super.inAFunctionDeclaration(declaration);
-        inParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+    public void caseAFunctionDeclaration(AFunctionDeclaration declaration) {
+        evaluateParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters(), declaration.getBody());
     }
 
     @Override
-    public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
-        super.inAVoidFunctionDeclaration(declaration);
-        inParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+    public void caseAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
+        evaluateParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters(), declaration.getBody());
     }
 
     @Override
-    public void inAConstructorDeclaration(AConstructorDeclaration declaration) {
-        super.inAConstructorDeclaration(declaration);
-        inParametrizedDeclaration(declaration, "new", declaration.getParameters());
+    public void caseAConstructorDeclaration(AConstructorDeclaration declaration) {
+        evaluateParametrizedDeclaration(declaration, "new", declaration.getParameters(), declaration.getBody());
     }
 
-    private void inParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters) {
+    private void evaluateParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters, List<PStatement> body) {
         assert stack.isEmpty();
         try {
             List<TypeToken> parameterTypes = Lists.transform(parameters, TypeTokenUtil.getDeclarationFunction());
@@ -552,86 +566,63 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
 
             flowModifiers.push(new FunctionFlowModifier(this, declaration));
+
             TypeToken returnType = symbol.getReturnType();
             if (returnType != null) {
                 returnLocation = new PseudoLocal(symbol.getReturnType());
                 stack.push(returnLocation);
             }
-            if (!symbol.getModifiers().contains(Modifier.STATIC) && thisSymbol != null) {
+            if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC)) {
                 stack.push(thisSymbol);
             }
+
+            for (PLocalDeclaration parameterDeclaration : parameters) {
+                inline(parameterDeclaration);
+            }
+
+            TypedSymbol jsrPointer = new PseudoLocal(IntegralTypeToken.UNSIGNED_SHORT);
+            stack.push(jsrPointer);
+
+            // in a constructor, we need to create this on the heap before proceeding further
+            if (declaration instanceof AConstructorDeclaration) {
+                // however, there is no heap
+                throw new NoHeapException();
+            }
+
+            onEnterScope(declaration);
+            for (PStatement enclosedStatement : body) {
+                inline(enclosedStatement);
+            }
+            onExitScope(declaration);
+            instructions.put(context, "SET PC POP");
+            TypedSymbol poppedJsr = stack.pop();
+            assert (poppedJsr == jsrPointer);
+
+            for (LocalSymbol parameter : Lists.reverse(symbol.getParameters())) {
+                TypedSymbol poppedParameter = stack.pop();
+                assert (poppedParameter == parameter);
+            }
+            if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC)) {
+                TypedSymbol poppedThis = stack.pop();
+                assert (poppedThis == thisSymbol);
+            }
+            if (returnLocation != null) {
+                TypedSymbol poppedReturn = stack.pop();
+                assert (poppedReturn == returnLocation);
+                returnLocation = null;
+            }
+            flowModifiers.pop();
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
-    }
-
-    @Override
-    public void outAFunctionDeclaration(AFunctionDeclaration declaration) {
-        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
-        super.outAFunctionDeclaration(declaration);
-    }
-
-    @Override
-    public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
-        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
-        super.outAVoidFunctionDeclaration(declaration);
-    }
-
-    @Override
-    public void outAConstructorDeclaration(AConstructorDeclaration declaration) {
-        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
-        super.outAConstructorDeclaration(declaration);
-    }
-
-    private void outParametrizedDeclaration(Node declaration, List<PLocalDeclaration> parameters, List<PStatement> body) {
-        for (PLocalDeclaration parameterDeclaration : parameters) {
-            inline(declaration, parameterDeclaration);
-        }
-
-        TypedSymbol jsrPointer = new PseudoLocal(IntegralTypeToken.UNSIGNED_SHORT);
-        stack.push(jsrPointer);
-
-        // in a constructor, we need to create this on the heap before proceeding further
-        if (declaration instanceof AConstructorDeclaration) {
-            // however, there is no heap
-            throw new NoHeapException();
-        }
-
-        for (PStatement enclosedStatement : body) {
-            inline(declaration, enclosedStatement);
-        }
-        instructions.put(declaration, "SET PC POP");
-        TypedSymbol poppedJsr = stack.pop();
-        assert (poppedJsr == jsrPointer);
-
-        for (PLocalDeclaration parameterDeclaration : Lists.reverse(parameters)) {
-            try {
-                String parameterName = ((ALocalDeclaration) parameterDeclaration).getName().getText();
-                TypedSymbol poppedParameter = stack.pop();
-                assert (poppedParameter == getScope().resolveLocal(parameterName));
-            } catch (SemanticException sx) {
-                exceptionBuffer.add(sx);
-            }
-        }
-        if (stack.contains(thisSymbol)) {
-            TypedSymbol poppedThis = stack.pop();
-            assert (poppedThis == thisSymbol);
-        }
-        if (returnLocation != null) {
-            TypedSymbol poppedReturn = stack.pop();
-            assert (poppedReturn == returnLocation);
-            returnLocation = null;
-        }
-        flowModifiers.pop();
-
         assert stack.isEmpty();
     }
 
     @Override
-    public void outALocalDeclaration(ALocalDeclaration declaration) {
+    public void caseALocalDeclaration(ALocalDeclaration declaration) {
         try {
             LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
-            declareLocal(declaration, symbol);
+            declareLocal(symbol);
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
