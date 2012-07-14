@@ -32,6 +32,7 @@ import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
+import com.prealpha.diamond.compiler.node.AInclude;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
@@ -613,5 +614,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         flowModifiers.pop();
 
         assert stack.isEmpty();
+    }
+
+    @Override
+    public void outALocalDeclaration(ALocalDeclaration declaration) {
+        try {
+            LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
+            declareLocal(declaration, symbol);
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
     }
 }
