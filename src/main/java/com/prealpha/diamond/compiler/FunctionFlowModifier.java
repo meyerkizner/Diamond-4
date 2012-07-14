@@ -35,10 +35,10 @@ final class FunctionFlowModifier implements FlowModifier {
     @Override
     public boolean onReturn(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(functionDeclaration)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.reclaimScope(context, codeGenerator.getScope());
-        codeGenerator.jumpTo(context, "POP");
+        codeGenerator.reclaimScope(codeGenerator.getScope());
+        codeGenerator.write("SET PC POP");
         return true;
     }
 }

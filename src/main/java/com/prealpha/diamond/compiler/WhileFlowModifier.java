@@ -26,18 +26,18 @@ final class WhileFlowModifier implements FlowModifier {
     @Override
     public boolean onBreak(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainEndLabel(whileStatement.getBody()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(whileStatement.getBody()));
         return true;
     }
 
     @Override
     public boolean onContinue(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainStartLabel(whileStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(whileStatement.getCondition()));
         return true;
     }
 

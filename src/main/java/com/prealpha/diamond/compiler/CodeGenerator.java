@@ -133,7 +133,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void declareLocal(TypedSymbol local) {
         stack.push(local);
         for (int i = 0; i < local.getType().getWidth(); i++) {
-            instructions.put(context, "SET PUSH 0x0000");
+            write("SET PUSH 0x0000");
         }
     }
 
@@ -143,7 +143,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             assert (popped == local);
         }
         String widthString = String.format("0x%4x", local.getType().getWidth());
-        instructions.put(context, "ADD SP " + widthString);
+        write("ADD SP " + widthString);
     }
 
     private void generateLabel(Node node) {
@@ -174,9 +174,9 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void inline(Node subject) {
-        instructions.put(context, ":" + obtainStartLabel(subject));
+        write(":" + obtainStartLabel(subject));
         subject.apply(this);
-        instructions.put(context, ":" + obtainEndLabel(subject));
+        write(":" + obtainEndLabel(subject));
     }
 
     private String lookup(TypedSymbol symbol, int wordOffset) {
@@ -196,9 +196,9 @@ final class CodeGenerator extends ScopeAwareWalker {
             return String.format("[SP+%d]", symbolOffset + wordOffset);
         }
     }
-
-    void jumpTo(String label) {
-        instructions.put(context, "SET PC " + label);
+    
+    void write(String instruction) {
+        instructions.put(context, instruction);
     }
 
     private static final class PseudoLocal implements TypedSymbol {
@@ -257,8 +257,8 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(condition);
 
-        instructions.put(context, "IFN POP 0x0000");
-        instructions.put(context, "SET PC " + obtainStartLabel(thenBody));
+        write("IFN POP 0x0000");
+        write("SET PC " + obtainStartLabel(thenBody));
         TypedSymbol popped = stack.pop();
         assert (popped == expressionResult);
         expressionResult = null;
@@ -266,7 +266,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (elseBody != null) {
             inline(elseBody);
         }
-        instructions.put(context, "SET PC " + obtainEndLabel(statement));
+        write("SET PC " + obtainEndLabel(statement));
         inline(thenBody);
     }
 
@@ -276,14 +276,14 @@ final class CodeGenerator extends ScopeAwareWalker {
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(expressionResult);
 
-        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement.getCondition());
 
-        instructions.put(context, "IFE " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody()));
+        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET PC " + obtainEndLabel(statement.getBody()));
 
         inline(statement.getBody());
-        instructions.put(context, "SET PC " + obtainStartLabel(statement.getCondition()));
+        write("SET PC " + obtainStartLabel(statement.getCondition()));
 
         reclaimLocal(expressionResult);
         expressionResult = null;
@@ -301,18 +301,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         declareLocal(expressionResult);
 
         // we actually want the update on top, so skip to the condition
-        instructions.put(context, "SET PC " + obtainStartLabel(statement.getCondition()));
+        write("SET PC " + obtainStartLabel(statement.getCondition()));
 
         inline(statement.getUpdate());
 
-        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement.getCondition());
 
-        instructions.put(context, "IFE " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody()));
+        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET PC " + obtainEndLabel(statement.getBody()));
 
         inline(statement.getBody());
-        instructions.put(context, "SET PC " + obtainStartLabel(statement.getUpdate()));
+        write("SET PC " + obtainStartLabel(statement.getUpdate()));
 
         reclaimLocal(expressionResult);
         expressionResult = null;
@@ -328,10 +328,10 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getBody());
 
-        instructions.put(context, "SET " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement.getCondition());
-        instructions.put(context, "IFN " + lookup(expressionResult, 0) + " 0x0000");
-        instructions.put(context, "SET PC " + obtainStartLabel(statement.getBody()));
+        write("IFN " + lookup(expressionResult, 0) + " 0x0000");
+        write("SET PC " + obtainStartLabel(statement.getBody()));
 
         reclaimLocal(expressionResult);
         expressionResult = null;
@@ -353,17 +353,17 @@ final class CodeGenerator extends ScopeAwareWalker {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
-                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
-                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
                         case 2:
-                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            instructions.put(context, String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
                     }
-                    instructions.put(context, "SET PC " + obtainStartLabel(caseGroup));
+                    write("SET PC " + obtainStartLabel(caseGroup));
                 } catch (SemanticException sx) {
                     exceptionBuffer.add(sx);
                 }
@@ -374,9 +374,9 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
         }
         if (defaultCaseGroup != null) {
-            instructions.put(context, "SET PC " + obtainStartLabel(defaultCaseGroup));
+            write("SET PC " + obtainStartLabel(defaultCaseGroup));
         } else if (!statement.getBody().isEmpty()) {
-            instructions.put(context, "SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
+            write("SET PC " + obtainEndLabel(statement.getBody().descendingIterator().next()));
         }
 
         for (PCaseGroup caseGroup : statement.getBody()) {
@@ -442,12 +442,12 @@ final class CodeGenerator extends ScopeAwareWalker {
         // copy the pseudo-local into the return location
         switch (types.get(statement.getReturnValue()).getWidth()) {
             case 4:
-                instructions.put(context, "SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
-                instructions.put(context, "SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
+                write("SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
+                write("SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
             case 2:
-                instructions.put(context, "SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
+                write("SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
             case 1:
-                instructions.put(context, "SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
+                write("SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
                 break;
             default:
                 assert false; // there shouldn't be any other widths
@@ -530,8 +530,8 @@ final class CodeGenerator extends ScopeAwareWalker {
             if (symbol.getModifiers().contains(Modifier.STATIC)) {
                 generateLabel(declaration);
                 for (int i = 0; i < symbol.getType().getWidth(); i++) {
-                    instructions.put(context, String.format(":%d_%s", i, labels.get(declaration)));
-                    instructions.put(context, "DAT 0x0000");
+                    write(String.format(":%d_%s", i, labels.get(declaration)));
+                    write("DAT 0x0000");
                 }
             }
         } catch (SemanticException sx) {
@@ -594,7 +594,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 inline(enclosedStatement);
             }
             onExitScope(declaration);
-            instructions.put(context, "SET PC POP");
+            write("SET PC POP");
             TypedSymbol poppedJsr = stack.pop();
             assert (poppedJsr == jsrPointer);
 

@@ -26,9 +26,9 @@ final class SwitchFlowModifier implements FlowModifier {
     @Override
     public boolean onBreak(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(switchStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
         return true;
     }
 

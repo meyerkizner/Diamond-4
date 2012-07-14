@@ -26,18 +26,18 @@ final class DoFlowModifier implements FlowModifier {
     @Override
     public boolean onBreak(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainEndLabel(doStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(doStatement.getCondition()));
         return true;
     }
 
     @Override
     public boolean onContinue(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainStartLabel(doStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(doStatement.getCondition()));
         return true;
     }
 

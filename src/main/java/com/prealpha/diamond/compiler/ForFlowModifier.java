@@ -26,18 +26,18 @@ final class ForFlowModifier implements FlowModifier {
     @Override
     public boolean onBreak(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainEndLabel(forStatement.getBody()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(forStatement.getBody()));
         return true;
     }
 
     @Override
     public boolean onContinue(Node context) {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
-            codeGenerator.reclaimScope(context, codeGenerator.getScope());
+            codeGenerator.reclaimScope(codeGenerator.getScope());
         }
-        codeGenerator.jumpTo(context, codeGenerator.obtainStartLabel(forStatement.getUpdate()));
+        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(forStatement.getUpdate()));
         return true;
     }
 
