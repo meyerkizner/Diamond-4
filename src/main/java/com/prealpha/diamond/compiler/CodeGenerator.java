@@ -68,10 +68,15 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Deque<FlowModifier> flowModifiers;
 
+    private TypedSymbol expressionResult;
+
     private TypedSymbol returnLocation;
 
     private TypedSymbol thisSymbol;
 
+    /*
+     * TODO: this variable is symptomatic of some serious problems in the overall design, I think
+     */
     private boolean inFlowModifier;
 
     public CodeGenerator(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer, Map<Node, TypeToken> types) {
@@ -211,13 +216,17 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void evaluateIfThenElse(Node statement, PExpression condition, PStatement thenBody, PStatement elseBody) {
-        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, pseudoLocal);
+        expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, expressionResult);
 
         inline(statement, condition);
 
         instructions.put(statement, "IFN POP 0x0000");
         instructions.put(statement, "SET PC " + obtainStartLabel(thenBody));
+        TypedSymbol popped = stack.pop();
+        assert (popped == expressionResult);
+        expressionResult = null;
+
         if (elseBody != null) {
             instructions.put(statement, "SET PC " + obtainStartLabel(elseBody));
             instructions.put(thenBody, "SET PC " + obtainEndLabel(statement));
@@ -227,10 +236,6 @@ final class CodeGenerator extends ScopeAwareWalker {
             instructions.put(statement, "SET PC " + obtainEndLabel(statement));
             inline(statement, thenBody);
         }
-
-        // note that we already reclaimed our pseudo-local in the IFN POP 0x0000
-        TypedSymbol popped = stack.pop();
-        assert (popped == pseudoLocal);
     }
 
     @Override
@@ -240,19 +245,20 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outAWhileStatement(AWhileStatement statement) {
-        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, pseudoLocal);
+        expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, expressionResult);
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement, statement.getCondition());
 
-        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.put(statement, "IFE " + lookup(expressionResult, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getCondition()));
         inline(statement, statement.getBody());
 
-        reclaimLocal(statement, pseudoLocal);
+        reclaimLocal(statement, expressionResult);
+        expressionResult = null;
         flowModifiers.pop();
     }
 
@@ -266,25 +272,25 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void outAForStatement(AForStatement statement) {
         inline(statement, statement.getInit());
 
-        // use a pseudo-local to evaluate the condition
-        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, pseudoLocal);
+        expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, expressionResult);
 
         // we actually want the update on top, so skip to the condition
         instructions.put(statement, "SET PC " + obtainStartLabel(statement.getCondition()));
 
         inline(statement, statement.getUpdate());
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement, statement.getCondition());
 
-        instructions.put(statement, "IFE " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.put(statement, "IFE " + lookup(expressionResult, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainEndLabel(statement.getBody()));
 
         instructions.put(statement.getBody(), "SET PC " + obtainStartLabel(statement.getUpdate()));
         inline(statement, statement.getBody());
 
-        reclaimLocal(statement, pseudoLocal);
+        reclaimLocal(statement, expressionResult);
+        expressionResult = null;
         flowModifiers.pop();
         super.outAForStatement(statement);
     }
@@ -296,18 +302,18 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outADoStatement(ADoStatement statement) {
-        // we'll be smart and make the pseudo-local now, since we're almost certainly going to need it
-        TypedSymbol pseudoLocal = new PseudoLocal(BooleanTypeToken.INSTANCE);
-        declareLocal(statement, pseudoLocal);
+        expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
+        declareLocal(statement, expressionResult);
 
         inline(statement, statement.getBody());
 
-        instructions.get(statement.getCondition()).add(0, "SET " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.get(statement.getCondition()).add(0, "SET " + lookup(expressionResult, 0) + " 0x0000");
         inline(statement, statement.getCondition());
-        instructions.put(statement, "IFN " + lookup(pseudoLocal, 0) + " 0x0000");
+        instructions.put(statement, "IFN " + lookup(expressionResult, 0) + " 0x0000");
         instructions.put(statement, "SET PC " + obtainStartLabel(statement.getBody()));
 
-        reclaimLocal(statement, pseudoLocal);
+        reclaimLocal(statement, expressionResult);
+        expressionResult = null;
         flowModifiers.pop();
     }
 
@@ -318,8 +324,8 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outASwitchStatement(ASwitchStatement statement) {
-        TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getValue()));
-        declareLocal(statement, pseudoLocal);
+        expressionResult = new PseudoLocal(types.get(statement.getValue()));
+        declareLocal(statement, expressionResult);
 
         inline(statement, statement.getValue());
 
@@ -330,12 +336,12 @@ final class CodeGenerator extends ScopeAwareWalker {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 3), (value & 0xffff000000000000L) >>> 48));
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 2), (value & 0x0000ffff00000000L) >>> 32));
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
                         case 2:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 1), (value & 0x00000000ffff0000L) >>> 16));
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(pseudoLocal, 0), value & 0x000000000000ffffL));
+                            instructions.put(statement, String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
@@ -360,7 +366,8 @@ final class CodeGenerator extends ScopeAwareWalker {
             inline(statement, caseGroup);
         }
 
-        reclaimLocal(statement, pseudoLocal);
+        reclaimLocal(statement, expressionResult);
+        expressionResult = null;
         flowModifiers.pop();
     }
 
@@ -409,27 +416,28 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outAReturnStatement(AReturnStatement statement) {
-        // evaluate the return expression in a pseudo-local
-        TypedSymbol pseudoLocal = new PseudoLocal(types.get(statement.getReturnValue()));
-        declareLocal(statement, pseudoLocal);
+        // evaluate the return expression
+        expressionResult = new PseudoLocal(types.get(statement.getReturnValue()));
+        declareLocal(statement, expressionResult);
 
         inline(statement, statement.getReturnValue());
 
         // copy the pseudo-local into the return location
         switch (types.get(statement.getReturnValue()).getWidth()) {
             case 4:
-                instructions.put(statement, "SET " + lookup(returnLocation, 3) + " " + lookup(pseudoLocal, 3));
-                instructions.put(statement, "SET " + lookup(returnLocation, 2) + " " + lookup(pseudoLocal, 2));
+                instructions.put(statement, "SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
+                instructions.put(statement, "SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
             case 2:
-                instructions.put(statement, "SET " + lookup(returnLocation, 1) + " " + lookup(pseudoLocal, 1));
+                instructions.put(statement, "SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
             case 1:
-                instructions.put(statement, "SET " + lookup(returnLocation, 0) + " " + lookup(pseudoLocal, 0));
+                instructions.put(statement, "SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
                 break;
             default:
                 assert false; // there shouldn't be any other widths
         }
 
-        reclaimLocal(statement, pseudoLocal);
+        reclaimLocal(statement, expressionResult);
+        expressionResult = null;
 
         inFlowModifier = true;
         boolean flag;
