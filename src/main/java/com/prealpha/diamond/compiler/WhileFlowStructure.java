@@ -10,12 +10,12 @@ import com.prealpha.diamond.compiler.node.AWhileStatement;
 
 import static com.google.common.base.Preconditions.*;
 
-final class WhileFlowModifier implements FlowModifier {
+final class WhileFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
     private final AWhileStatement whileStatement;
 
-    public WhileFlowModifier(CodeGenerator codeGenerator, AWhileStatement whileStatement) {
+    public WhileFlowStructure(CodeGenerator codeGenerator, AWhileStatement whileStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(whileStatement);
         this.codeGenerator = codeGenerator;

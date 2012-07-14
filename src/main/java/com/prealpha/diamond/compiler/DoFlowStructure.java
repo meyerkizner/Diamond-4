@@ -10,12 +10,12 @@ import com.prealpha.diamond.compiler.node.ADoStatement;
 
 import static com.google.common.base.Preconditions.*;
 
-final class DoFlowModifier implements FlowModifier {
+final class DoFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
     private final ADoStatement doStatement;
 
-    public DoFlowModifier(CodeGenerator codeGenerator, ADoStatement doStatement) {
+    public DoFlowStructure(CodeGenerator codeGenerator, ADoStatement doStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(doStatement);
         this.codeGenerator = codeGenerator;

@@ -6,7 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
-interface FlowModifier {
+interface FlowStructure {
     boolean onBreak();
 
     boolean onContinue();

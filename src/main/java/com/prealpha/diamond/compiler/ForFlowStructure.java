@@ -10,12 +10,12 @@ import com.prealpha.diamond.compiler.node.AForStatement;
 
 import static com.google.common.base.Preconditions.*;
 
-final class ForFlowModifier implements FlowModifier {
+final class ForFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
     private final AForStatement forStatement;
 
-    public ForFlowModifier(CodeGenerator codeGenerator, AForStatement forStatement) {
+    public ForFlowStructure(CodeGenerator codeGenerator, AForStatement forStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(forStatement);
         this.codeGenerator = codeGenerator;

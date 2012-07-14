@@ -69,7 +69,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private final Deque<TypedSymbol> stack;
 
-    private final Deque<FlowModifier> flowModifiers;
+    private final Deque<FlowStructure> flowStructures;
 
     private PTopLevelStatement context;
 
@@ -86,7 +86,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         labels = Maps.newHashMap();
         instructions = ArrayListMultimap.create();
         stack = Lists.newLinkedList();
-        flowModifiers = Lists.newLinkedList();
+        flowStructures = Lists.newLinkedList();
     }
 
     public List<String> getInstructions() throws SemanticException {
@@ -278,7 +278,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAWhileStatement(AWhileStatement statement) {
-        flowModifiers.push(new WhileFlowModifier(this, statement));
+        flowStructures.push(new WhileFlowStructure(this, statement));
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(expressionResult);
 
@@ -293,13 +293,13 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         reclaimLocal(expressionResult);
         expressionResult = null;
-        flowModifiers.pop();
+        flowStructures.pop();
     }
 
     @Override
     public void caseAForStatement(AForStatement statement) {
         super.inAForStatement(statement);
-        flowModifiers.push(new ForFlowModifier(this, statement));
+        flowStructures.push(new ForFlowStructure(this, statement));
 
         inline(statement.getInit());
 
@@ -322,13 +322,13 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         reclaimLocal(expressionResult);
         expressionResult = null;
-        flowModifiers.pop();
+        flowStructures.pop();
         super.outAForStatement(statement);
     }
 
     @Override
     public void caseADoStatement(ADoStatement statement) {
-        flowModifiers.push(new DoFlowModifier(this, statement));
+        flowStructures.push(new DoFlowStructure(this, statement));
         expressionResult = new PseudoLocal(BooleanTypeToken.INSTANCE);
         declareLocal(expressionResult);
 
@@ -341,12 +341,12 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         reclaimLocal(expressionResult);
         expressionResult = null;
-        flowModifiers.pop();
+        flowStructures.pop();
     }
 
     @Override
     public void caseASwitchStatement(ASwitchStatement statement) {
-        flowModifiers.push(new SwitchFlowModifier(this, statement));
+        flowStructures.push(new SwitchFlowStructure(this, statement));
         expressionResult = new PseudoLocal(types.get(statement.getValue()));
         declareLocal(expressionResult);
 
@@ -391,7 +391,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         reclaimLocal(expressionResult);
         expressionResult = null;
-        flowModifiers.pop();
+        flowStructures.pop();
     }
 
     private Iterable<PIntegralLiteral> getCaseGroupValues(PCaseGroup caseGroup) {
@@ -413,11 +413,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseABreakStatement(ABreakStatement statement) {
         boolean flag;
         do {
-            if (flowModifiers.isEmpty()) {
+            if (flowStructures.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid break"));
                 break;
             }
-            flag = flowModifiers.pop().onBreak();
+            flag = flowStructures.pop().onBreak();
         } while (!flag);
     }
 
@@ -425,11 +425,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseAContinueStatement(AContinueStatement statement) {
         boolean flag;
         do {
-            if (flowModifiers.isEmpty()) {
+            if (flowStructures.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid continue"));
                 break;
             }
-            flag = flowModifiers.pop().onContinue();
+            flag = flowStructures.pop().onContinue();
         } while (!flag);
     }
 
@@ -460,11 +460,11 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         boolean flag;
         do {
-            if (flowModifiers.isEmpty()) {
+            if (flowStructures.isEmpty()) {
                 exceptionBuffer.add(new SemanticException(statement, "invalid return"));
                 break;
             }
-            flag = flowModifiers.pop().onReturn();
+            flag = flowStructures.pop().onReturn();
         } while (!flag);
     }
 
@@ -565,7 +565,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 symbol = getScope().resolveFunction(name, parameterTypes);
             }
 
-            flowModifiers.push(new ParametrizedFlowModifier(this, declaration));
+            flowStructures.push(new ParametrizedFlowStructure(this, declaration));
 
             TypeToken returnType = symbol.getReturnType();
             if (returnType != null) {
@@ -611,7 +611,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 assert (poppedReturn == returnLocation);
                 returnLocation = null;
             }
-            flowModifiers.pop();
+            flowStructures.pop();
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }

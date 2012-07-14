@@ -10,12 +10,12 @@ import com.prealpha.diamond.compiler.node.Node;
 
 import static com.google.common.base.Preconditions.*;
 
-final class ParametrizedFlowModifier implements FlowModifier {
+final class ParametrizedFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
     private final Node parametrizedDeclaration;
 
-    public ParametrizedFlowModifier(CodeGenerator codeGenerator, Node parametrizedDeclaration) {
+    public ParametrizedFlowStructure(CodeGenerator codeGenerator, Node parametrizedDeclaration) {
         checkNotNull(codeGenerator);
         checkNotNull(parametrizedDeclaration);
         this.codeGenerator = codeGenerator;

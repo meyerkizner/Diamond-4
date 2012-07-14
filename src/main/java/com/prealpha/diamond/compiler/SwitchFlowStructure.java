@@ -10,12 +10,12 @@ import com.prealpha.diamond.compiler.node.ASwitchStatement;
 
 import static com.google.common.base.Preconditions.*;
 
-final class SwitchFlowModifier implements FlowModifier {
+final class SwitchFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
     private final ASwitchStatement switchStatement;
 
-    public SwitchFlowModifier(CodeGenerator codeGenerator, ASwitchStatement switchStatement) {
+    public SwitchFlowStructure(CodeGenerator codeGenerator, ASwitchStatement switchStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(switchStatement);
         this.codeGenerator = codeGenerator;
