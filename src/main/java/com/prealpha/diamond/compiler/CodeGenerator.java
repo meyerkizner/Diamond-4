@@ -104,9 +104,6 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void declareLocal(Node context, TypedSymbol local) {
-        if (local.getType().isReference()) {
-            throw new NoHeapException();
-        }
         stack.push(local);
         for (int i = 0; i < local.getType().getWidth(); i++) {
             instructions.put(context, "SET PUSH 0x0000");
