@@ -19,6 +19,7 @@ import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
+import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
@@ -512,20 +513,31 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void inAFunctionDeclaration(AFunctionDeclaration declaration) {
         super.inAFunctionDeclaration(declaration);
-        inPFunctionDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+        inParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
     }
 
     @Override
     public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
         super.inAVoidFunctionDeclaration(declaration);
-        inPFunctionDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
+        inParametrizedDeclaration(declaration, declaration.getName().getText(), declaration.getParameters());
     }
 
-    private void inPFunctionDeclaration(PFunctionDeclaration declaration, String name, List<PLocalDeclaration> parameters) {
+    @Override
+    public void inAConstructorDeclaration(AConstructorDeclaration declaration) {
+        super.inAConstructorDeclaration(declaration);
+        inParametrizedDeclaration(declaration, "new", declaration.getParameters());
+    }
+
+    private void inParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters) {
         assert stack.isEmpty();
         try {
             List<TypeToken> parameterTypes = Lists.transform(parameters, TypeTokenUtil.getDeclarationFunction());
-            FunctionSymbol symbol = getScope().resolveFunction(name, parameterTypes);
+            ParametrizedSymbol symbol;
+            if (declaration instanceof AConstructorDeclaration) {
+                symbol = getScope().resolveConstructor(parameterTypes);
+            } else {
+                symbol = getScope().resolveFunction(name, parameterTypes);
+            }
 
             flowModifiers.push(new FunctionFlowModifier(this, declaration));
             TypeToken returnType = symbol.getReturnType();
@@ -543,23 +555,35 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void outAFunctionDeclaration(AFunctionDeclaration declaration) {
-        outPFunctionDeclaration(declaration, declaration.getParameters(), declaration.getBody());
+        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
         super.outAFunctionDeclaration(declaration);
     }
 
     @Override
     public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration declaration) {
-        outPFunctionDeclaration(declaration, declaration.getParameters(), declaration.getBody());
+        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
         super.outAVoidFunctionDeclaration(declaration);
     }
 
-    private void outPFunctionDeclaration(PFunctionDeclaration declaration, List<PLocalDeclaration> parameters, List<PStatement> body) {
+    @Override
+    public void outAConstructorDeclaration(AConstructorDeclaration declaration) {
+        outParametrizedDeclaration(declaration, declaration.getParameters(), declaration.getBody());
+        super.outAConstructorDeclaration(declaration);
+    }
+
+    private void outParametrizedDeclaration(Node declaration, List<PLocalDeclaration> parameters, List<PStatement> body) {
         for (PLocalDeclaration parameterDeclaration : parameters) {
             inline(declaration, parameterDeclaration);
         }
 
         TypedSymbol jsrPointer = new PseudoLocal(IntegralTypeToken.UNSIGNED_SHORT);
         stack.push(jsrPointer);
+
+        // in a constructor, we need to create this on the heap before proceeding further
+        if (declaration instanceof AConstructorDeclaration) {
+            // however, there is no heap
+            throw new NoHeapException();
+        }
 
         for (PStatement enclosedStatement : body) {
             inline(declaration, enclosedStatement);

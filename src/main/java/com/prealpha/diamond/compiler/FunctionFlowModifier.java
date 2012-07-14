@@ -7,16 +7,15 @@
 package com.prealpha.diamond.compiler;
 
 import com.prealpha.diamond.compiler.node.Node;
-import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 
 import static com.google.common.base.Preconditions.*;
 
 final class FunctionFlowModifier implements FlowModifier {
     private final CodeGenerator codeGenerator;
 
-    private final PFunctionDeclaration functionDeclaration;
+    private final Node functionDeclaration;
 
-    public FunctionFlowModifier(CodeGenerator codeGenerator, PFunctionDeclaration functionDeclaration) {
+    public FunctionFlowModifier(CodeGenerator codeGenerator, Node functionDeclaration) {
         checkNotNull(codeGenerator);
         checkNotNull(functionDeclaration);
         this.codeGenerator = codeGenerator;
