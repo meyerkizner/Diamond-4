@@ -47,7 +47,6 @@ import com.prealpha.diamond.compiler.node.AIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
-import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
@@ -858,7 +857,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
-            evaluateParametrizedInvocation(symbol, invocation.getParameters());
+            evaluateParametrizedInvocation(symbol, thisSymbol, invocation.getParameters());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -873,14 +872,22 @@ final class CodeGenerator extends ScopeAwareWalker {
             PQualifiedName qualifiedName = invocation.getFunctionName();
             TypeToken type;
             String functionName;
+            TypedSymbol object;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                type = types.get(expressionName.getTarget());
+                PPrimaryExpression expression = expressionName.getTarget();
+                type = types.get(expression);
                 functionName = expressionName.getName().getText();
+                object = new PseudoLocal(type);
+                declareLocal(object);
+                TypedSymbol ourExpressionResult = expressionResult;
+                inline(expression);
+                expressionResult = ourExpressionResult;
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
                 type = (typeName.getTarget() == null ? null : TypeTokenUtil.fromNode(typeName.getTarget()));
                 functionName = typeName.getName().getText();
+                object = null;
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
@@ -894,7 +901,10 @@ final class CodeGenerator extends ScopeAwareWalker {
                 }
                 List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
                 FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
-                evaluateParametrizedInvocation(symbol, invocation.getParameters());
+                evaluateParametrizedInvocation(symbol, object, invocation.getParameters());
+                if (object != null) {
+                    reclaimLocal(object);
+                }
             } else {
                 throw new SemanticException("built-in types do not currently support any functions");
             }
@@ -909,9 +919,10 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConstructorInvocation(AConstructorInvocation invocation) {
         try {
+            TypeToken scopeToken;
             Scope scope;
             if (invocation.getTarget() != null) {
-                TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
+                scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
                 if (scopeToken instanceof UserDefinedTypeToken) {
                     ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                     scope = getScope(classSymbol.getDeclaration());
@@ -920,22 +931,17 @@ final class CodeGenerator extends ScopeAwareWalker {
                 }
             } else {
                 scope = getScope();
+                scopeToken = thisSymbol.getType();
             }
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
-            evaluateParametrizedInvocation(symbol, invocation.getParameters());
+            evaluateParametrizedInvocation(symbol, new PseudoLocal(scopeToken), invocation.getParameters());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    private void evaluateParametrizedInvocation(ParametrizedSymbol symbol, List<PExpression> parameters) {
-        if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
-            // add the implicit this parameter to instance methods
-            parameters = Lists.newArrayList(parameters);
-            parameters.add(0, new APrimaryExpression(new AThisPrimaryExpression()));
-        }
-
+    private void evaluateParametrizedInvocation(ParametrizedSymbol symbol, TypedSymbol object, List<PExpression> parameters) {
         if (symbol.getReturnType() != null) {
             assert symbol.getReturnType().equals(expressionResult.getType());
         } else {
@@ -943,18 +949,26 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
         returnLocation = expressionResult;
 
+        if (object != null) {
+            declareLocal(object);
+        }
+
         Map<PExpression, PseudoLocal> parameterLocals = Maps.newHashMap();
         for (PExpression parameter : parameters) {
             parameterLocals.put(parameter, new PseudoLocal(types.get(parameter)));
             expressionResult = parameterLocals.get(parameter);
-            doDeclareLocal(expressionResult);
+            declareLocal(expressionResult);
             inline(parameter);
         }
 
         write("JSR " + obtainStartLabel(symbol.getDeclaration()));
 
         for (PExpression parameter : Lists.reverse(parameters)) {
-            doReclaimLocal(parameterLocals.get(parameter));
+            reclaimLocal(parameterLocals.get(parameter));
+        }
+
+        if (object != null) {
+            reclaimLocal(object);
         }
 
         expressionResult = returnLocation;
