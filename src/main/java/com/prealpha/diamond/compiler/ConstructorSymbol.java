@@ -23,15 +23,19 @@ import static com.google.common.base.Preconditions.checkNotNull;
 final class ConstructorSymbol implements ParametrizedSymbol {
     private final AConstructorDeclaration declaration;
 
+    private final ClassSymbol declaringClass;
+
     private final UserDefinedTypeToken returnType;
 
     private final List<LocalSymbol> parameters;
 
     private final Set<Modifier> modifiers;
 
-    ConstructorSymbol(AConstructorDeclaration declaration) throws SemanticException {
+    ConstructorSymbol(AConstructorDeclaration declaration, ClassSymbol declaringClass) throws SemanticException {
         checkNotNull(declaration);
+        checkNotNull(declaringClass);
         this.declaration = declaration;
+        this.declaringClass = declaringClass;
         this.returnType = new UserDefinedTypeToken(this.declaration.getReturnType().getText());
         this.parameters = Lists.newArrayList();
         for (PLocalDeclaration parameterNode : this.declaration.getParameters()) {
@@ -47,11 +51,19 @@ final class ConstructorSymbol implements ParametrizedSymbol {
                 this.modifiers.add(modifier);
             }
         }
+        if (!modifiers.contains(Modifier.STATIC)) {
+            throw new SemanticException(declaration, "constructors must have the modifier static");
+        }
     }
 
     @Override
     public AConstructorDeclaration getDeclaration() {
         return declaration;
+    }
+
+    @Override
+    public ClassSymbol getDeclaringClass() {
+        return declaringClass;
     }
 
     @Override

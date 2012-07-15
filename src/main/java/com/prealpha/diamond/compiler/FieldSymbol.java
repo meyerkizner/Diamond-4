@@ -15,8 +15,10 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-final class FieldSymbol implements TypedSymbol {
+final class FieldSymbol implements MemberSymbol, TypedSymbol {
     private final AFieldDeclaration declaration;
+
+    private final ClassSymbol declaringClass;
 
     private final String name;
 
@@ -24,9 +26,11 @@ final class FieldSymbol implements TypedSymbol {
 
     private final Set<Modifier> modifiers;
 
-    FieldSymbol(AFieldDeclaration declaration) throws SemanticException {
+    FieldSymbol(AFieldDeclaration declaration, ClassSymbol declaringClass) throws SemanticException {
         checkNotNull(declaration);
+        checkNotNull(declaringClass);
         this.declaration = declaration;
+        this.declaringClass = declaringClass;
         this.name = this.declaration.getName().getText();
         this.type = TypeTokenUtil.fromNode(declaration.getType());
         this.modifiers = EnumSet.noneOf(Modifier.class);
@@ -43,6 +47,11 @@ final class FieldSymbol implements TypedSymbol {
     @Override
     public AFieldDeclaration getDeclaration() {
         return declaration;
+    }
+
+    @Override
+    public ClassSymbol getDeclaringClass() {
+        return declaringClass;
     }
 
     public String getName() {

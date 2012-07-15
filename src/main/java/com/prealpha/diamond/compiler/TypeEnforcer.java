@@ -28,6 +28,7 @@ import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
 import com.prealpha.diamond.compiler.node.AConditionalExpression;
 import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
+import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADivideAssignment;
@@ -88,7 +89,6 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
-import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
@@ -108,7 +108,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private PClassDeclaration currentClass;
 
-    private PFunctionDeclaration currentFunction;
+    private Node currentFunction;
 
     public TypeEnforcer(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer) {
         super(scopeSource);
@@ -263,8 +263,13 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAReturnStatement(AReturnStatement returnStatement) {
         PExpression returnValue = returnStatement.getReturnValue();
         if (currentFunction != null) {
-            if (currentFunction instanceof AFunctionDeclaration) {
-                TypeToken returnType = TypeTokenUtil.fromNode(((AFunctionDeclaration) currentFunction).getReturnType());
+            if (currentFunction instanceof AFunctionDeclaration || currentFunction instanceof AConstructorDeclaration) {
+                TypeToken returnType;
+                if (currentFunction instanceof AFunctionDeclaration) {
+                    returnType = TypeTokenUtil.fromNode(((AFunctionDeclaration) currentFunction).getReturnType());
+                } else {
+                    returnType = new UserDefinedTypeToken(((AConstructorDeclaration) currentFunction).getReturnType().getText());
+                }
                 assertAssignableTo(returnValue, returnType);
             } else if (currentFunction instanceof AVoidFunctionDeclaration) {
                 if (returnValue != null) {
@@ -324,6 +329,22 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
         currentFunction = null;
         super.outAVoidFunctionDeclaration(functionDeclaration);
+    }
+
+    @Override
+    public void inAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
+        if (currentFunction != null) {
+            exceptionBuffer.add(new SemanticException(constructorDeclaration, "unexpected constructor declaration"));
+        } else {
+            currentFunction = constructorDeclaration;
+        }
+        super.inAConstructorDeclaration(constructorDeclaration);
+    }
+
+    @Override
+    public void outAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
+        currentFunction = null;
+        super.outAConstructorDeclaration(constructorDeclaration);
     }
 
     @Override

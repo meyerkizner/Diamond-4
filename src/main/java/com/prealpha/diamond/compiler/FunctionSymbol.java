@@ -25,6 +25,8 @@ import java.util.Set;
 final class FunctionSymbol implements ParametrizedSymbol {
     private final PFunctionDeclaration declaration;
 
+    private final ClassSymbol declaringClass;
+
     private final String name;
 
     private final TypeToken returnType;
@@ -33,16 +35,17 @@ final class FunctionSymbol implements ParametrizedSymbol {
 
     private final Set<Modifier> modifiers;
 
-    FunctionSymbol(AFunctionDeclaration declaration) throws SemanticException {
-        this(declaration, declaration.getName(), declaration.getReturnType(), declaration.getParameters(), declaration.getModifiers());
+    FunctionSymbol(AFunctionDeclaration declaration, ClassSymbol declaringClass) throws SemanticException {
+        this(declaration, declaringClass, declaration.getName(), declaration.getReturnType(), declaration.getParameters(), declaration.getModifiers());
     }
 
-    FunctionSymbol(AVoidFunctionDeclaration declaration) throws SemanticException {
-        this(declaration, declaration.getName(), null, declaration.getParameters(), declaration.getModifiers());
+    FunctionSymbol(AVoidFunctionDeclaration declaration, ClassSymbol declaringClass) throws SemanticException {
+        this(declaration, declaringClass, declaration.getName(), null, declaration.getParameters(), declaration.getModifiers());
     }
 
-    private FunctionSymbol(PFunctionDeclaration declaration, TIdentifier name, PTypeToken returnType, List<PLocalDeclaration> parameters, List<PModifier> modifiers) throws SemanticException {
+    private FunctionSymbol(PFunctionDeclaration declaration, ClassSymbol declaringClass, TIdentifier name, PTypeToken returnType, List<PLocalDeclaration> parameters, List<PModifier> modifiers) throws SemanticException {
         this.declaration = declaration;
+        this.declaringClass = declaringClass;
         this.name = name.getText();
         this.returnType = TypeTokenUtil.fromNode(returnType);
         this.parameters = Lists.newArrayList();
@@ -64,6 +67,11 @@ final class FunctionSymbol implements ParametrizedSymbol {
     @Override
     public PFunctionDeclaration getDeclaration() {
         return declaration;
+    }
+
+    @Override
+    public ClassSymbol getDeclaringClass() {
+        return declaringClass;
     }
 
     public String getName() {
