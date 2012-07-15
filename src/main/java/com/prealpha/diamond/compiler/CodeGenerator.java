@@ -48,6 +48,7 @@ import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
+import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
@@ -56,6 +57,7 @@ import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
 import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
+import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
@@ -71,6 +73,7 @@ import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.PTypeToken;
+import com.prealpha.diamond.compiler.node.TIdentifier;
 import com.prealpha.diamond.compiler.node.Token;
 
 import java.util.Deque;
@@ -163,9 +166,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void doDeclareLocal(TypedSymbol local) {
-        for (int i = 0; i < local.getType().getWidth(); i++) {
-            write("SET PUSH 0x0000");
-        }
+        write(String.format("SUB SP 0x%4x", local.getType().getWidth()));
     }
 
     private void reclaimLocal(TypedSymbol local) {
@@ -175,8 +176,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void doReclaimLocal(TypedSymbol local) {
-        String widthString = String.format("0x%4x", local.getType().getWidth());
-        write("ADD SP " + widthString);
+        write(String.format("ADD SP 0x%4x", local.getType().getWidth()));
     }
 
     private void generateLabel(Node node) {
@@ -920,5 +920,79 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         expressionResult = returnLocation;
         returnLocation = null;
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAUnqualifiedArrayAccess(AUnqualifiedArrayAccess)
+     */
+    @Override
+    public void caseAUnqualifiedArrayAccess(AUnqualifiedArrayAccess arrayAccess) {
+        try {
+            try {
+                LocalSymbol localSymbol = getScope().resolveLocal(arrayAccess.getArrayName().getText());
+                evaluateArrayAccess(localSymbol, arrayAccess.getIndex());
+            } catch (SemanticException sx) {
+                FieldSymbol fieldSymbol = getScope().resolveField(arrayAccess.getArrayName().getText());
+                evaluateArrayAccess(fieldSymbol, arrayAccess.getIndex());
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAQualifiedArrayAccess(AQualifiedArrayAccess)
+     */
+    @Override
+    public void caseAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
+        try {
+            PQualifiedName qualifiedName = arrayAccess.getArrayName();
+            TIdentifier fieldName;
+            TypeToken scopeToken;
+            if (qualifiedName instanceof AExpressionQualifiedName) {
+                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
+                fieldName = expressionName.getName();
+                scopeToken = types.get(expressionName.getTarget());
+            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
+                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
+                fieldName = typeName.getName();
+                scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
+            } else {
+                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
+            }
+            if (scopeToken instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                Scope classScope = getScope(classSymbol.getDeclaration());
+                FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
+                evaluateArrayAccess(fieldSymbol, arrayAccess.getIndex());
+            } else {
+                throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    private void evaluateArrayAccess(TypedSymbol array, PExpression index) {
+        assert array.getType() instanceof ArrayTypeToken;
+        TypeToken elementType = ((ArrayTypeToken) array.getType()).getElementType();
+        assert elementType.equals(expressionResult.getType());
+
+        TypedSymbol ourExpressionResult = expressionResult;
+        expressionResult = new PseudoLocal(types.get(index));
+        declareLocal(expressionResult);
+        inline(index);
+
+        // pointer arithmetic and such
+        write(String.format("MUL %s 0x%4x", lookup(expressionResult, 0), elementType.getWidth()));
+        write("SET B POP");
+        TypedSymbol popped = stack.pop();
+        assert (popped == expressionResult);
+        expressionResult = ourExpressionResult;
+        write("ADD B [SP]");
+        write("SET [SP] [B]");
+        for (int i = 1; i < elementType.getWidth(); i++) {
+            write(String.format("SET %s [B+%d]", lookup(expressionResult, i), i));
+        }
     }
 }
