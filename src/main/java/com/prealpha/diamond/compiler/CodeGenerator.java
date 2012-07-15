@@ -15,6 +15,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
@@ -22,22 +23,35 @@ import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
+import com.prealpha.diamond.compiler.node.AConstructorInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADoStatement;
+import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
+import com.prealpha.diamond.compiler.node.AFalseLiteral;
 import com.prealpha.diamond.compiler.node.AFieldClassStatement;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.AFunctionInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AFunctionTopLevelStatement;
+import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
+import com.prealpha.diamond.compiler.node.AIntegralLiteral;
+import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
+import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
+import com.prealpha.diamond.compiler.node.AStringLiteral;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
+import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
+import com.prealpha.diamond.compiler.node.ATrueLiteral;
+import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -47,8 +61,11 @@ import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
+import com.prealpha.diamond.compiler.node.PPrimaryExpression;
+import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
+import com.prealpha.diamond.compiler.node.PTypeToken;
 import com.prealpha.diamond.compiler.node.Token;
 
 import java.util.Deque;
@@ -135,7 +152,12 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void declareLocal(TypedSymbol local) {
+        assert !stack.contains(local);
         stack.push(local);
+        doDeclareLocal(local);
+    }
+
+    private void doDeclareLocal(TypedSymbol local) {
         for (int i = 0; i < local.getType().getWidth(); i++) {
             write("SET PUSH 0x0000");
         }
@@ -186,6 +208,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private String lookup(TypedSymbol symbol, int wordOffset) {
+        assert stack.contains(symbol);
         checkArgument(wordOffset < symbol.getType().getWidth());
         checkArgument(wordOffset >= 0);
         int symbolOffset = 0;
@@ -200,6 +223,29 @@ final class CodeGenerator extends ScopeAwareWalker {
             return "[SP]";
         } else {
             return String.format("[SP+%d]", symbolOffset + wordOffset);
+        }
+    }
+
+    private void copy(TypedSymbol from, TypedSymbol to) {
+        checkArgument(from.getType().equals(to.getType()));
+        for (int i = 0; i < from.getType().getWidth(); i++) {
+            write("SET " + lookup(to, i) + " " + lookup(from, i));
+        }
+    }
+
+    private void copyLiteral(long from, TypedSymbol to) {
+        checkArgument(to.getType() instanceof IntegralTypeToken);
+        switch (to.getType().getWidth()) {
+            case 4:
+                write(String.format("SET %s 0x%4x", lookup(to, 3), (from & 0xffff000000000000L) >>> 48));
+                write(String.format("SET %s 0x%4x", lookup(to, 2), (from & 0x0000ffff00000000L) >>> 32));
+            case 2:
+                write(String.format("SET %s 0x%4x", lookup(to, 1), (from & 0x00000000ffff0000L) >>> 16));
+            case 1:
+                write(String.format("SET %s 0x%4x", lookup(to, 0), (from & 0x000000000000ffffL)));
+                break;
+            default:
+                assert false; // there shouldn't be any other widths
         }
     }
     
@@ -356,6 +402,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         for (PCaseGroup caseGroup : statement.getBody()) {
             for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
                 try {
+                    // TODO: this method is a lot like copyLiteral(long, TypedSymbol)
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
@@ -364,7 +411,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                         case 2:
                             write(String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 0), value & 0x000000000000ffffL));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 0), (value & 0x000000000000ffffL)));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
@@ -435,26 +482,11 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAReturnStatement(AReturnStatement statement) {
-        // evaluate the return expression
+        // evaluate the return expression, and store it in returnLocation
         expressionResult = new PseudoLocal(types.get(statement.getReturnValue()));
         declareLocal(expressionResult);
-
         inline(statement.getReturnValue());
-
-        // copy the pseudo-local into the return location
-        switch (types.get(statement.getReturnValue()).getWidth()) {
-            case 4:
-                write("SET " + lookup(returnLocation, 3) + " " + lookup(expressionResult, 3));
-                write("SET " + lookup(returnLocation, 2) + " " + lookup(expressionResult, 2));
-            case 2:
-                write("SET " + lookup(returnLocation, 1) + " " + lookup(expressionResult, 1));
-            case 1:
-                write("SET " + lookup(returnLocation, 0) + " " + lookup(expressionResult, 0));
-                break;
-            default:
-                assert false; // there shouldn't be any other widths
-        }
-
+        copy(expressionResult, returnLocation);
         reclaimLocal(expressionResult);
         expressionResult = null;
 
@@ -644,5 +676,123 @@ final class CodeGenerator extends ScopeAwareWalker {
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
+    }
+
+    @Override
+    public void caseALiteralPrimaryExpression(ALiteralPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getLiteral());
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAIdentifierPrimaryExpression(AIdentifierPrimaryExpression)
+     */
+    @Override
+    public void caseAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
+        assert types.get(primaryExpression).equals(expressionResult.getType());
+        try {
+            try {
+                LocalSymbol localSymbol = getScope().resolveLocal(primaryExpression.getIdentifier().getText());
+                copy(localSymbol, expressionResult);
+            } catch (SemanticException sx) {
+                FieldSymbol fieldSymbol = getScope().resolveField(primaryExpression.getIdentifier().getText());
+                copy(fieldSymbol, expressionResult);
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression)
+     */
+    @Override
+    public void caseAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
+        assert types.get(primaryExpression).equals(expressionResult.getType());
+        try {
+            PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
+            TypeToken type;
+            String fieldName;
+            if (qualifiedName instanceof AExpressionQualifiedName) {
+                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
+                PPrimaryExpression expression = expressionName.getTarget();
+                type = types.get(expression);
+                fieldName = expressionName.getName().getText();
+            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
+                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
+                PTypeToken rawTarget = typeName.getTarget();
+                if (rawTarget != null) {
+                    type = TypeTokenUtil.fromNode(rawTarget);
+                    fieldName = typeName.getName().getText();
+                } else {
+                    throw new SemanticException(primaryExpression, "there are no fields in the global scope");
+                }
+            } else {
+                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
+            }
+            if (type instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+                Scope classScope = getScope(classSymbol.getDeclaration());
+                FieldSymbol symbol = classScope.resolveField(fieldName);
+                copy(symbol, expressionResult);
+            } else {
+                throw new SemanticException("built-in types do not currently support any fields");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    @Override
+    public void caseAThisPrimaryExpression(AThisPrimaryExpression primaryExpression) {
+        assert types.get(primaryExpression).equals(expressionResult.getType());
+        copy(thisSymbol, expressionResult);
+    }
+
+    @Override
+    public void caseAParentheticalPrimaryExpression(AParentheticalPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getExpression());
+    }
+
+    @Override
+    public void caseAFunctionInvocationPrimaryExpression(AFunctionInvocationPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getFunctionInvocation());
+    }
+
+    @Override
+    public void caseAConstructorInvocationPrimaryExpression(AConstructorInvocationPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getConstructorInvocation());
+    }
+
+    @Override
+    public void caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getArrayAccess());
+    }
+
+    @Override
+    public void caseAIntegralLiteral(AIntegralLiteral literal) {
+        assert types.get(literal).equals(expressionResult.getType());
+        try {
+            long value = IntegralTypeToken.parseLiteral(literal.getIntegralLiteral()).longValue();
+            copyLiteral(value, expressionResult);
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    @Override
+    public void caseAStringLiteral(AStringLiteral literal) {
+        throw new NoHeapException();
+    }
+
+    @Override
+    public void caseATrueLiteral(ATrueLiteral literal) {
+        assert types.get(literal).equals(expressionResult.getType());
+        write("SET " + lookup(expressionResult, 0) + " 0x0001");
+    }
+
+    @Override
+    public void caseAFalseLiteral(AFalseLiteral literal) {
+        assert types.get(literal).equals(expressionResult.getType());
+        write("SET " + lookup(expressionResult, 0) + " 0x0000");
     }
 }
