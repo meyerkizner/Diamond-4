@@ -6,6 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.google.common.base.Functions;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
@@ -23,6 +24,7 @@ import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
+import com.prealpha.diamond.compiler.node.AConstructorInvocation;
 import com.prealpha.diamond.compiler.node.AConstructorInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
@@ -45,6 +47,8 @@ import com.prealpha.diamond.compiler.node.AIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
+import com.prealpha.diamond.compiler.node.APrimaryExpression;
+import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
@@ -52,6 +56,7 @@ import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
 import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
+import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -626,18 +631,18 @@ final class CodeGenerator extends ScopeAwareWalker {
 
             super.onEnterScope(declaration);
 
+            // in a constructor, we need to create this on the heap before proceeding further
+            if (declaration instanceof AConstructorDeclaration) {
+                // however, there is no heap
+                throw new NoHeapException();
+            }
+
             for (PLocalDeclaration parameterDeclaration : parameters) {
                 inline(parameterDeclaration);
             }
 
             TypedSymbol jsrPointer = new PseudoLocal(IntegralTypeToken.UNSIGNED_SHORT);
             stack.push(jsrPointer);
-
-            // in a constructor, we need to create this on the heap before proceeding further
-            if (declaration instanceof AConstructorDeclaration) {
-                // however, there is no heap
-                throw new NoHeapException();
-            }
 
             for (PStatement enclosedStatement : body) {
                 inline(enclosedStatement);
@@ -661,7 +666,8 @@ final class CodeGenerator extends ScopeAwareWalker {
 
             super.onExitScope(declaration);
 
-            if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC)) {
+            if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC)
+                    || declaration instanceof AConstructorDeclaration) {
                 TypedSymbol poppedThis = stack.pop();
                 assert (poppedThis == thisSymbol);
             }
@@ -803,5 +809,116 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseAFalseLiteral(AFalseLiteral literal) {
         assert types.get(literal).equals(expressionResult.getType());
         write("SET " + lookup(expressionResult, 0) + " 0x0000");
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation)
+     */
+    @Override
+    public void caseAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation invocation) {
+        try {
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            evaluateParametrizedInvocation(symbol, invocation.getParameters());
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAQualifiedFunctionInvocation(AQualifiedFunctionInvocation)
+     */
+    @Override
+    public void caseAQualifiedFunctionInvocation(AQualifiedFunctionInvocation invocation) {
+        try {
+            PQualifiedName qualifiedName = invocation.getFunctionName();
+            TypeToken type;
+            String functionName;
+            if (qualifiedName instanceof AExpressionQualifiedName) {
+                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
+                type = types.get(expressionName.getTarget());
+                functionName = expressionName.getName().getText();
+            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
+                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
+                type = (typeName.getTarget() == null ? null : TypeTokenUtil.fromNode(typeName.getTarget()));
+                functionName = typeName.getName().getText();
+            } else {
+                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
+            }
+            if (type == null || type instanceof UserDefinedTypeToken) {
+                Scope scope;
+                if (type != null) {
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
+                } else {
+                    scope = getScope(null);
+                }
+                List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+                FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
+                evaluateParametrizedInvocation(symbol, invocation.getParameters());
+            } else {
+                throw new SemanticException("built-in types do not currently support any functions");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    /*
+     * TODO: duplicates TypeEnforcer.outAConstructorInvocation(AConstructorInvocation)
+     */
+    @Override
+    public void caseAConstructorInvocation(AConstructorInvocation invocation) {
+        try {
+            Scope scope;
+            if (invocation.getTarget() != null) {
+                TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
+                if (scopeToken instanceof UserDefinedTypeToken) {
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
+                } else {
+                    throw new SemanticException(invocation, "built-in types do not currently support any constructors");
+                }
+            } else {
+                scope = getScope();
+            }
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
+            evaluateParametrizedInvocation(symbol, invocation.getParameters());
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    private void evaluateParametrizedInvocation(ParametrizedSymbol symbol, List<PExpression> parameters) {
+        if (thisSymbol != null && !symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
+            // add the implicit this parameter to instance methods
+            parameters = Lists.newArrayList(parameters);
+            parameters.add(0, new APrimaryExpression(new AThisPrimaryExpression()));
+        }
+
+        if (symbol.getReturnType() != null) {
+            assert symbol.getReturnType().equals(expressionResult.getType());
+        } else {
+            assert expressionResult == null;
+        }
+        returnLocation = expressionResult;
+
+        Map<PExpression, PseudoLocal> parameterLocals = Maps.newHashMap();
+        for (PExpression parameter : parameters) {
+            parameterLocals.put(parameter, new PseudoLocal(types.get(parameter)));
+            expressionResult = parameterLocals.get(parameter);
+            doDeclareLocal(expressionResult);
+            inline(parameter);
+        }
+
+        write("JSR " + obtainStartLabel(symbol.getDeclaration()));
+
+        for (PExpression parameter : Lists.reverse(parameters)) {
+            doReclaimLocal(parameterLocals.get(parameter));
+        }
+
+        expressionResult = returnLocation;
+        returnLocation = null;
     }
 }
