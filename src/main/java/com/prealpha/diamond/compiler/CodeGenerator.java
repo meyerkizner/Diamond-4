@@ -502,7 +502,16 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAExpressionStatement(AExpressionStatement statement) {
+        assert expressionResult == null;
+        if (types.get(statement) != null) {
+            expressionResult = new PseudoLocal(types.get(statement));
+            declareLocal(expressionResult);
+        }
         inline(statement.getExpression());
+        if (types.get(statement) != null) {
+            reclaimLocal(expressionResult);
+            expressionResult = null;
+        }
     }
 
     @Override
