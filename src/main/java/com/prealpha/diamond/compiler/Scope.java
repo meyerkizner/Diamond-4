@@ -186,9 +186,18 @@ final class Scope {
     }
 
     /**
+     * Returns the fields that are strictly within this scope. Fields inherited from parent scopes are not included.
+     *
+     * @return the list of fields strictly within this scope, in the order declared
+     */
+    public List<FieldSymbol> getFields() {
+        return ImmutableList.copyOf(fieldSymbols.values());
+    }
+
+    /**
      * Returns the locals that are strictly within this scope. Locals inherited from parent scopes are not included.
      *
-     * @return the list of locals in this scope, in the order declared
+     * @return the list of locals strictly within this scope, in the order declared
      */
     public List<LocalSymbol> getLocals() {
         return ImmutableList.copyOf(localSymbols.values());

@@ -93,7 +93,6 @@ import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PTypeToken;
-import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -522,23 +521,23 @@ final class TypeEnforcer extends ScopeAwareWalker {
         assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
         try {
             PQualifiedName qualifiedName = arrayAccess.getArrayName();
-            TIdentifier fieldName;
-            TypeToken scopeToken;
+            TypeToken type;
+            String fieldName;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                fieldName = expressionName.getName();
-                scopeToken = types.get(expressionName.getTarget());
+                type = types.get(expressionName.getTarget());
+                fieldName = expressionName.getName().getText();
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                fieldName = typeName.getName();
-                scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
+                type = TypeTokenUtil.fromNode(typeName.getTarget());
+                fieldName = typeName.getName().getText();
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
-            if (scopeToken instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+            if (type instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
+                FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
                 enforceArrayAccess(arrayAccess, fieldSymbol);
             } else {
                 throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");

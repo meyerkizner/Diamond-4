@@ -73,7 +73,6 @@ import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.PTypeToken;
-import com.prealpha.diamond.compiler.node.TIdentifier;
 import com.prealpha.diamond.compiler.node.Token;
 
 import java.util.Deque;
@@ -235,6 +234,35 @@ final class CodeGenerator extends ScopeAwareWalker {
         checkArgument(from.getType().equals(to.getType()));
         for (int i = 0; i < from.getType().getWidth(); i++) {
             write("SET " + lookup(to, i) + " " + lookup(from, i));
+        }
+    }
+
+    private void copyField(TypedSymbol object, FieldSymbol field, TypedSymbol to) {
+        checkArgument(field.getModifiers().contains(Modifier.STATIC) || object.getType().isReference());
+        checkArgument(field.getType().equals(to.getType()));
+
+        if (field.getModifiers().contains(Modifier.STATIC)) {
+            write("SET B " + obtainStartLabel(field.getDeclaration()));
+            doCopyField(to);
+        } else {
+            write("SET B " + lookup(object, 0));
+            int fieldOffset = 0;
+            for (FieldSymbol declaredField : getScope(object.getDeclaration()).getFields()) {
+                if (field != declaredField && !declaredField.getModifiers().contains(Modifier.STATIC)) {
+                    fieldOffset += declaredField.getType().getWidth();
+                } else {
+                    break;
+                }
+            }
+            write(String.format("ADD B 0x%4x", fieldOffset));
+            doCopyField(to);
+        }
+    }
+
+    private void doCopyField(TypedSymbol to) {
+        write("SET " + lookup(to, 0) + " [B]");
+        for (int i = 1; i < to.getType().getWidth(); i++) {
+            write(String.format("SET %s [B+0x%4x]", lookup(to, i), i));
         }
     }
 
@@ -710,7 +738,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 copy(localSymbol, expressionResult);
             } catch (SemanticException sx) {
                 FieldSymbol fieldSymbol = getScope().resolveField(primaryExpression.getIdentifier().getText());
-                copy(fieldSymbol, expressionResult);
+                copyField(thisSymbol, fieldSymbol, expressionResult);
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -727,17 +755,25 @@ final class CodeGenerator extends ScopeAwareWalker {
             PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
             TypeToken type;
             String fieldName;
+            TypedSymbol object;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
                 PPrimaryExpression expression = expressionName.getTarget();
                 type = types.get(expression);
                 fieldName = expressionName.getName().getText();
+                object = new PseudoLocal(type);
+                declareLocal(object);
+                TypedSymbol ourExpressionResult = expressionResult;
+                expressionResult = object;
+                inline(expression);
+                expressionResult = ourExpressionResult;
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
                 PTypeToken rawTarget = typeName.getTarget();
                 if (rawTarget != null) {
                     type = TypeTokenUtil.fromNode(rawTarget);
                     fieldName = typeName.getName().getText();
+                    object = null;
                 } else {
                     throw new SemanticException(primaryExpression, "there are no fields in the global scope");
                 }
@@ -748,7 +784,10 @@ final class CodeGenerator extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol symbol = classScope.resolveField(fieldName);
-                copy(symbol, expressionResult);
+                copyField(object, symbol, expressionResult);
+                if (object != null) {
+                    reclaimLocal(object);
+                }
             } else {
                 throw new SemanticException("built-in types do not currently support any fields");
             }
@@ -933,7 +972,11 @@ final class CodeGenerator extends ScopeAwareWalker {
                 evaluateArrayAccess(localSymbol, arrayAccess.getIndex());
             } catch (SemanticException sx) {
                 FieldSymbol fieldSymbol = getScope().resolveField(arrayAccess.getArrayName().getText());
-                evaluateArrayAccess(fieldSymbol, arrayAccess.getIndex());
+                TypedSymbol array = new PseudoLocal(fieldSymbol.getType());
+                declareLocal(array);
+                copyField(thisSymbol, fieldSymbol, array);
+                evaluateArrayAccess(array, arrayAccess.getIndex());
+                reclaimLocal(array);
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -947,24 +990,40 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
         try {
             PQualifiedName qualifiedName = arrayAccess.getArrayName();
-            TIdentifier fieldName;
-            TypeToken scopeToken;
+            TypeToken type;
+            String fieldName;
+            TypedSymbol object;
             if (qualifiedName instanceof AExpressionQualifiedName) {
                 AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                fieldName = expressionName.getName();
-                scopeToken = types.get(expressionName.getTarget());
+                PPrimaryExpression expression = expressionName.getTarget();
+                type = types.get(expression);
+                fieldName = expressionName.getName().getText();
+                object = new PseudoLocal(type);
+                declareLocal(object);
+                TypedSymbol ourExpressionResult = expressionResult;
+                expressionResult = object;
+                inline(expression);
+                expressionResult = ourExpressionResult;
             } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
                 ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                fieldName = typeName.getName();
-                scopeToken = TypeTokenUtil.fromNode(typeName.getTarget());
+                type = TypeTokenUtil.fromNode(typeName.getTarget());
+                fieldName = typeName.getName().getText();
+                object = null;
             } else {
                 throw new SemanticException(qualifiedName, "unknown qualified name flavor");
             }
-            if (scopeToken instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+            if (type instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol fieldSymbol = classScope.resolveField(fieldName.getText());
-                evaluateArrayAccess(fieldSymbol, arrayAccess.getIndex());
+                FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
+                TypedSymbol array = new PseudoLocal(fieldSymbol.getType());
+                declareLocal(array);
+                copyField(object, fieldSymbol, array);
+                evaluateArrayAccess(array, arrayAccess.getIndex());
+                reclaimLocal(array);
+                if (object != null) {
+                    reclaimLocal(object);
+                }
             } else {
                 throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
             }
@@ -985,14 +1044,11 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         // pointer arithmetic and such
         write(String.format("MUL %s 0x%4x", lookup(expressionResult, 0), elementType.getWidth()));
-        write("SET B POP");
+        write("SET B " + lookup(array, 0));
+        write("ADD B POP");
         TypedSymbol popped = stack.pop();
         assert (popped == expressionResult);
         expressionResult = ourExpressionResult;
-        write("ADD B [SP]");
-        write("SET [SP] [B]");
-        for (int i = 1; i < elementType.getWidth(); i++) {
-            write(String.format("SET %s [B+%d]", lookup(expressionResult, i), i));
-        }
+        doCopyField(expressionResult);
     }
 }
