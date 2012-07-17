@@ -59,10 +59,7 @@ import com.prealpha.diamond.compiler.node.ANotPointerEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APointerEqualExpression;
-import com.prealpha.diamond.compiler.node.APostDecrementExpression;
-import com.prealpha.diamond.compiler.node.APostIncrementExpression;
-import com.prealpha.diamond.compiler.node.APreDecrementExpression;
-import com.prealpha.diamond.compiler.node.APreIncrementExpression;
+
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
@@ -580,30 +577,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAPrimaryExpression(APrimaryExpression primaryExpression) {
         types.put(primaryExpression, types.get(primaryExpression.getPrimaryExpression()));
-    }
-
-    @Override
-    public void outAPostIncrementExpression(APostIncrementExpression expression) {
-        assertNumeric(expression.getValue());
-        types.put(expression, types.get(expression.getValue()));
-    }
-
-    @Override
-    public void outAPostDecrementExpression(APostDecrementExpression expression) {
-        assertNumeric(expression.getValue());
-        types.put(expression, types.get(expression.getValue()));
-    }
-
-    @Override
-    public void outAPreIncrementExpression(APreIncrementExpression expression) {
-        assertNumeric(expression.getValue());
-        types.put(expression, types.get(expression.getValue()));
-    }
-
-    @Override
-    public void outAPreDecrementExpression(APreDecrementExpression expression) {
-        assertNumeric(expression.getValue());
-        types.put(expression, types.get(expression.getValue()));
     }
 
     @Override
