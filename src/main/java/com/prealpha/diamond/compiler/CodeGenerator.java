@@ -219,16 +219,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    private void declareLocal(TypedSymbol local) {
-        assert !stack.contains(local);
-        stack.push(local);
-        doDeclareLocal(local);
-    }
-
-    private void doDeclareLocal(TypedSymbol local) {
-        write(String.format("SUB SP 0x%4x", local.getType().getWidth()));
-    }
-
     private void reclaimLocal(TypedSymbol local) {
         TypedSymbol popped = stack.pop();
         assert (popped == local);
@@ -735,7 +725,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseALocalDeclaration(ALocalDeclaration declaration) {
         try {
             LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
-            declareLocal(symbol);
+            write(String.format("SUB SP 0x%4x", symbol.getType().getWidth()));
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
