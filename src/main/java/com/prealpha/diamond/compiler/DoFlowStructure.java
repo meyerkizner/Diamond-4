@@ -27,7 +27,7 @@ final class DoFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(doStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.getEndLabel(doStatement.getCondition()));
         return true;
     }
 
@@ -36,7 +36,7 @@ final class DoFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(doStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.getStartLabel(doStatement.getCondition()));
         return true;
     }
 

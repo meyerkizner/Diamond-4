@@ -27,7 +27,7 @@ final class ForFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(forStatement.getBody()));
+        codeGenerator.write("SET PC " + codeGenerator.getEndLabel(forStatement.getBody()));
         return true;
     }
 
@@ -36,7 +36,7 @@ final class ForFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(forStatement.getUpdate()));
+        codeGenerator.write("SET PC " + codeGenerator.getStartLabel(forStatement.getUpdate()));
         return true;
     }
 

@@ -27,7 +27,7 @@ final class WhileFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(whileStatement.getBody()));
+        codeGenerator.write("SET PC " + codeGenerator.getEndLabel(whileStatement.getBody()));
         return true;
     }
 
@@ -36,7 +36,7 @@ final class WhileFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainStartLabel(whileStatement.getCondition()));
+        codeGenerator.write("SET PC " + codeGenerator.getStartLabel(whileStatement.getCondition()));
         return true;
     }
 

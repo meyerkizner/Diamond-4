@@ -27,7 +27,7 @@ final class SwitchFlowStructure implements FlowStructure {
         while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(switchStatement)) {
             codeGenerator.reclaimScope();
         }
-        codeGenerator.write("SET PC " + codeGenerator.obtainEndLabel(switchStatement.getBody().descendingIterator().next()));
+        codeGenerator.write("SET PC " + codeGenerator.getEndLabel(switchStatement.getBody().descendingIterator().next()));
         return true;
     }
 
