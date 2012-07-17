@@ -15,11 +15,13 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
+import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
+import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
@@ -44,7 +46,9 @@ import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
+import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
@@ -329,6 +333,24 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
         }
     }
+
+    private void requireValue() {
+        if (expressionResult != null) {
+            switch (expressionResult.getType().getWidth()) {
+                case 4:
+                    write("SET X " + lookupExpression(3));
+                    write("SET C " + lookupExpression(2));
+                case 2:
+                    write("SET B " + lookupExpression(1));
+                case 1:
+                    write("SET A " + lookupExpression(0));
+                    break;
+                default:
+                    assert false;
+            }
+            expressionResult = null;
+        }
+    }
     
     void write(String instruction) {
         instructions.put(context, instruction);
@@ -541,21 +563,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getReturnValue());
         // if the expression didn't return a value, coerce whatever it did return into one
         // this is done in case the result is a local/field that will fall out of scope
-        if (expressionResult != null) {
-            switch (expressionResult.getType().getWidth()) {
-                case 4:
-                    write("SET X " + lookupExpression(3));
-                    write("SET C " + lookupExpression(2));
-                case 2:
-                    write("SET B " + lookupExpression(1));
-                case 1:
-                    write("SET A " + lookupExpression(0));
-                    break;
-                default:
-                    assert false; // there shouldn't be any other widths
-            }
-            expressionResult = null;
-        }
+        requireValue();
         boolean flag;
         do {
             if (flowStructures.isEmpty()) {
@@ -687,24 +695,9 @@ final class CodeGenerator extends ScopeAwareWalker {
             }
 
             // TRY to put the last expression as the return value if we get to this point
-            // (if there's an explicit return, it will always set expressionResult to null)
             // we need to do this here because it could be a local that's about to fall out of scope
             // this behavior is UNDEFINED because it's not type-checked
-            if (expressionResult != null) {
-                switch (expressionResult.getType().getWidth()) {
-                    case 4:
-                        write("SET X " + lookupExpression(3));
-                        write("SET C " + lookupExpression(2));
-                    case 2:
-                        write("SET B " + lookupExpression(1));
-                    case 1:
-                        write("SET A " + lookupExpression(0));
-                        break;
-                    default:
-                        assert false; // there shouldn't be any other widths
-                }
-                expressionResult = null;
-            }
+            requireValue();
 
             // reclaim all locals that are NOT parameters
             for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
@@ -1101,5 +1094,49 @@ final class CodeGenerator extends ScopeAwareWalker {
                 assert false; // there shouldn't be any other widths
         }
         expressionResult = null;
+    }
+
+    @Override
+    public void caseAPrimaryExpression(APrimaryExpression expression) {
+        inline(expression.getPrimaryExpression());
+    }
+
+    @Override
+    public void caseANumericNegationExpression(ANumericNegationExpression expression) {
+        inline(new ABitwiseComplementExpression(expression.getValue()));
+        requireValue(); // though it'll happen anyway, it makes things clearer
+        write("ADD A 0x0001");
+        if (types.get(expression).getWidth() >= 2) {
+            write("ADD B EX");
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ADD C EX");
+            write("ADD X EX");
+        }
+    }
+
+    @Override
+    public void caseAConditionalNotExpression(AConditionalNotExpression expression) {
+        inline(expression.getValue());
+        requireValue();
+        write("XOR A 0x0001");
+    }
+
+    @Override
+    public void caseABitwiseComplementExpression(ABitwiseComplementExpression expression) {
+        inline(expression.getValue());
+        requireValue();
+        switch (types.get(expression).getWidth()) {
+            case 4:
+                write("XOR X 0xffff");
+                write("XOR C 0xffff");
+            case 2:
+                write("XOR B 0xffff");
+            case 1:
+                write("XOR A 0xffff");
+                break;
+            default:
+                assert false; // there shouldn't be any other widths
+        }
     }
 }
