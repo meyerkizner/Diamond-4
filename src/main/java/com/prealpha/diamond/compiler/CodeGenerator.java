@@ -289,24 +289,28 @@ final class CodeGenerator extends ScopeAwareWalker {
             assert stack.contains(expressionResult);
             return lookup(expressionResult, wordOffset);
         } else if (expressionResult instanceof FieldSymbol) {
-            // TODO: static fields
-            // the object we need for this field is located in register A
-            ClassSymbol fieldClass = ((FieldSymbol) expressionResult).getDeclaringClass();
-            Scope scope = getScope(fieldClass.getDeclaration());
-            List<FieldSymbol> allFields = scope.getFields();
-            int fieldOffset = 0;
-            for (FieldSymbol field : allFields) {
-                if (field != expressionResult) {
-                    fieldOffset += field.getType().getWidth();
-                } else {
-                    break;
+            if (!expressionResult.getModifiers().contains(Modifier.STATIC)) {
+                // the object we need for this field is located in register A
+                ClassSymbol fieldClass = ((FieldSymbol) expressionResult).getDeclaringClass();
+                Scope scope = getScope(fieldClass.getDeclaration());
+                List<FieldSymbol> allFields = scope.getFields();
+                int fieldOffset = 0;
+                for (FieldSymbol field : allFields) {
+                    if (field != expressionResult) {
+                        fieldOffset += field.getType().getWidth();
+                    } else {
+                        break;
+                    }
                 }
-            }
-            fieldOffset += wordOffset;
-            if (fieldOffset == 0) {
-                return "[A]";
+                fieldOffset += wordOffset;
+                if (fieldOffset == 0) {
+                    return "[A]";
+                } else {
+                    return String.format("[A+%d]", fieldOffset);
+                }
             } else {
-                return String.format("[A+%d]", fieldOffset);
+                // see #caseAFieldDeclaration(AFieldDeclaration)
+                return String.format("%d_%s", wordOffset, getBaseLabel(expressionResult.getDeclaration()));
             }
         } else {
             // the expression result is a value, stored in registers A, B, C, and X (as needed)
@@ -535,6 +539,23 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAReturnStatement(AReturnStatement statement) {
         inline(statement.getReturnValue());
+        // if the expression didn't return a value, coerce whatever it did return into one
+        // this is done in case the result is a local/field that will fall out of scope
+        if (expressionResult != null) {
+            switch (expressionResult.getType().getWidth()) {
+                case 4:
+                    write("SET X " + lookupExpression(3));
+                    write("SET C " + lookupExpression(2));
+                case 2:
+                    write("SET B " + lookupExpression(1));
+                case 1:
+                    write("SET A " + lookupExpression(0));
+                    break;
+                default:
+                    assert false; // there shouldn't be any other widths
+            }
+            expressionResult = null;
+        }
         boolean flag;
         do {
             if (flowStructures.isEmpty()) {
@@ -664,6 +685,27 @@ final class CodeGenerator extends ScopeAwareWalker {
             for (PStatement enclosedStatement : body) {
                 inline(enclosedStatement);
             }
+
+            // TRY to put the last expression as the return value if we get to this point
+            // (if there's an explicit return, it will always set expressionResult to null)
+            // we need to do this here because it could be a local that's about to fall out of scope
+            // this behavior is UNDEFINED because it's not type-checked
+            if (expressionResult != null) {
+                switch (expressionResult.getType().getWidth()) {
+                    case 4:
+                        write("SET X " + lookupExpression(3));
+                        write("SET C " + lookupExpression(2));
+                    case 2:
+                        write("SET B " + lookupExpression(1));
+                    case 1:
+                        write("SET A " + lookupExpression(0));
+                        break;
+                    default:
+                        assert false; // there shouldn't be any other widths
+                }
+                expressionResult = null;
+            }
+
             // reclaim all locals that are NOT parameters
             for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
                 if (stack.peek() == jsrPointer) {
@@ -966,6 +1008,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
             write("ADD SP 1"); // clear out this
         }
+
+        // the function invocation will have already set the relevant registers
+        expressionResult = null;
     }
 
     /*
