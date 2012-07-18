@@ -45,15 +45,19 @@ enum IntegralTypeToken implements TypeToken {
         }
     }
 
+    public boolean isSigned() {
+        return (width % 2 != 0);
+    }
+
     @Override
     public boolean isAssignableTo(TypeToken targetType) {
         if (!(targetType instanceof IntegralTypeToken)) {
             return false;
         } else {
             IntegralTypeToken integralTarget = (IntegralTypeToken) targetType;
-            if (width % 2 != 0) {
+            if (isSigned()) {
                 // signed types should only widen to other signed types
-                return (integralTarget.width >= this.width) && (integralTarget.width % 2 != 0);
+                return (integralTarget.width >= this.width) && (integralTarget.isSigned());
             } else {
                 // unsigned types can widen to signed ones
                 return (integralTarget.width >= this.width);
@@ -73,7 +77,7 @@ enum IntegralTypeToken implements TypeToken {
     }
 
     public IntegralTypeToken promoteToSigned() throws SemanticException {
-        if (width % 2 != 0) {
+        if (isSigned()) {
             return this;
         } else if ((ordinal() + 1) < values().length) {
             return values()[ordinal() + 1];

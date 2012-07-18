@@ -14,6 +14,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
+import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
@@ -29,6 +30,7 @@ import com.prealpha.diamond.compiler.node.AConstructorInvocationPrimaryExpressio
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
+import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
@@ -46,6 +48,8 @@ import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AModulusExpression;
+import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
@@ -54,6 +58,7 @@ import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
+import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
@@ -1182,5 +1187,121 @@ final class CodeGenerator extends ScopeAwareWalker {
             default:
                 assert false; // there shouldn't be any other widths
         }
+    }
+
+    /*
+     * TODO: arithmetic needs a LOT of unit tests, and I'm sure these methods fail in some (or even most) cases
+     */
+
+    @Override
+    public void caseAMultiplyExpression(AMultiplyExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MLI" : "MUL";
+        write(String.format("%s A %s", instruction, lookup(left, 0)));
+        if (types.get(expression).getWidth() >= 2) {
+            write("ADD B EX");
+            write(String.format("%s B %s", instruction, lookup(left, 1)));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ADD C EX");
+            write(String.format("%s C %s", instruction, lookup(left, 2)));
+            write("ADD X EX");
+            write(String.format("%s X %s", instruction, lookup(left, 3)));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseADivideExpression(ADivideExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "DVI" : "DIV";
+        write(String.format("%s A %s", instruction, lookup(left, 0)));
+        if (types.get(expression).getWidth() >= 2) {
+            write("ADD B EX");
+            write(String.format("%s B %s", instruction, lookup(left, 1)));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ADD C EX");
+            write(String.format("%s C %s", instruction, lookup(left, 2)));
+            write("ADD X EX");
+            write(String.format("%s X %s", instruction, lookup(left, 3)));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAModulusExpression(AModulusExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MDI" : "MOD";
+        write(String.format("%s A %s", instruction, lookup(left, 0)));
+        if (types.get(expression).getWidth() >= 2) {
+            write("ADD B EX");
+            write(String.format("%s B %s", instruction, lookup(left, 1)));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ADD C EX");
+            write(String.format("%s C %s", instruction, lookup(left, 2)));
+            write("ADD X EX");
+            write(String.format("%s X %s", instruction, lookup(left, 3)));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAAddExpression(AAddExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+
+        write("ADD A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("ADX B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ADX C " + lookup(left, 2));
+            write("ADX D " + lookup(left, 3));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseASubtractExpression(ASubtractExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+
+        write("SUB A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("SBX B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("SBX C " + lookup(left, 2));
+            write("SBX D " + lookup(left, 3));
+        }
+        expressionResult = null;
     }
 }
