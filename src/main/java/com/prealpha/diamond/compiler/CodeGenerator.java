@@ -57,6 +57,8 @@ import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
+import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
+import com.prealpha.diamond.compiler.node.AShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
 import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
@@ -65,6 +67,7 @@ import com.prealpha.diamond.compiler.node.ATrueLiteral;
 import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
 import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
+import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -1301,6 +1304,119 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (types.get(expression).getWidth() >= 4) {
             write("SBX C " + lookup(left, 2));
             write("SBX D " + lookup(left, 3));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAShiftLeftExpression(AShiftLeftExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+        // this is awkward, but put the right operand in register Y
+        // we can discard any other words because they don't matter anyway
+        write("SET Y A");
+
+        // now put the stack stuff back in the registers (yes...)
+        write("SET A " + lookup(left, 0));
+        if (types.get(expression.getLeft()).getWidth() >= 2) {
+            write("SET B " + lookup(left, 1));
+        }
+        if (types.get(expression.getLeft()).getWidth() >= 4) {
+            write("SET C " + lookup(left, 2));
+            write("SET X " + lookup(left, 3));
+        }
+
+        // start on the high order words, so we don't have to waste instructions on storing EX in Z
+        if (types.get(expression).getWidth() >= 4) {
+            write("SHL X Y");
+            write("SHL C Y");
+            write("AND X EX");
+            write("SHL B Y");
+            write("AND C EX");
+            write("SHL A Y");
+            write("AND B EX");
+        } else if (types.get(expression).getWidth() >= 2) {
+            write("SHL B Y");
+            write("SHL A Y");
+            write("AND B EX");
+        } else {
+            write("SHL A Y");
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAShiftRightExpression(AShiftRightExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+        // this is awkward, but put the right operand in register Y
+        // we can discard any other words because they don't matter anyway
+        write("SET Y A");
+
+        // now put the stack stuff back in the registers (yes...)
+        write("SET A " + lookup(left, 0));
+        if (types.get(expression.getLeft()).getWidth() >= 2) {
+            write("SET B " + lookup(left, 1));
+        }
+        if (types.get(expression.getLeft()).getWidth() >= 4) {
+            write("SET C " + lookup(left, 2));
+            write("SET X " + lookup(left, 3));
+        }
+
+        write("ASR A Y");
+        if (types.get(expression).getWidth() >= 2) {
+            write("ASR B Y");
+            write("AND A EX");
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("ASR C Y");
+            write("AND B EX");
+            write("ASR D Y");
+            write("AND C EX");
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAUnsignedShiftRightExpression(AUnsignedShiftRightExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue();
+        // this is awkward, but put the right operand in register Y
+        // we can discard any other words because they don't matter anyway
+        write("SET Y A");
+
+        // now put the stack stuff back in the registers (yes...)
+        write("SET A " + lookup(left, 0));
+        if (types.get(expression.getLeft()).getWidth() >= 2) {
+            write("SET B " + lookup(left, 1));
+        }
+        if (types.get(expression.getLeft()).getWidth() >= 4) {
+            write("SET C " + lookup(left, 2));
+            write("SET X " + lookup(left, 3));
+        }
+
+        write("SHR A Y");
+        if (types.get(expression).getWidth() >= 2) {
+            write("SHR B Y");
+            write("AND A EX");
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("SHR C Y");
+            write("AND B EX");
+            write("SHR D Y");
+            write("AND C EX");
         }
         expressionResult = null;
     }
