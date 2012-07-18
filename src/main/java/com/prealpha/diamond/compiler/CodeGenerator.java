@@ -120,8 +120,11 @@ final class CodeGenerator extends ScopeAwareWalker {
      * on the stack as soon as it is declared, and removed when it falls out of scope. The stack also contains several
      * placeholder values, used to represent values on the stack that do not correspond to local variables:
      * <ul>
-     *     <li>{@link #thisSymbol}, a pointer to {@code this} for instance methods</li>
-     *     <li>A one-word JSR pointer, to account for the stack offset caused by the JSR instruction used to enter functions</li>
+     *     <li>{@link #thisSymbol}, a pointer to {@code this} for instance methods.</li>
+     *     <li>A one-word JSR pointer, to account for the stack offset caused by the JSR instruction used to enter
+     *     functions.</li>
+     *     <li>{@link TransientPlaceholder} values, which are used in binary expressions to store the left operand while
+     *     the right operand is being evaluated. These POP from the stack as soon as they are accessed.</li>
      * </ul>
      */
     private final Deque<TypedSymbol> stack;
