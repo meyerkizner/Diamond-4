@@ -262,6 +262,11 @@ final class CodeGenerator extends ScopeAwareWalker {
         assert stack.contains(symbol);
         checkArgument(wordOffset < symbol.getType().getWidth());
         checkArgument(wordOffset >= 0);
+        if (symbol instanceof TransientPlaceholder) {
+            checkArgument(((TransientPlaceholder) symbol).lookup(wordOffset));
+            return "POP";
+        }
+
         int symbolOffset = 0;
         for (TypedSymbol stackSymbol : stack) {
             if (stackSymbol == symbol) {
@@ -341,15 +346,36 @@ final class CodeGenerator extends ScopeAwareWalker {
             expressionResult = null;
         }
     }
+
+    private void requireStack(TypeToken type) {
+        if (expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder) {
+            assert stack.contains(expressionResult);
+        } else {
+            TransientPlaceholder placeholder = new TransientPlaceholder(type);
+            switch (type.getWidth()) {
+                case 4:
+                    write("SET PUSH " + lookupExpression(3));
+                    write("SET PUSH " + lookupExpression(2));
+                case 2:
+                    write("SET PUSH " + lookupExpression(1));
+                case 1:
+                    write("SET PUSH " + lookupExpression(0));
+                    break;
+                default:
+                    assert false;
+            }
+            expressionResult = placeholder;
+        }
+    }
     
     void write(String instruction) {
         instructions.put(context, instruction);
     }
 
-    private static final class Placeholder implements TypedSymbol {
+    private static abstract class Placeholder implements TypedSymbol {
         private final TypeToken type;
 
-        public Placeholder(TypeToken type) {
+        protected Placeholder(TypeToken type) {
             checkNotNull(type);
             this.type = type;
         }
@@ -367,6 +393,30 @@ final class CodeGenerator extends ScopeAwareWalker {
         @Override
         public Set<Modifier> getModifiers() {
             return ImmutableSet.of();
+        }
+    }
+
+    private static final class FunctionPlaceholder extends Placeholder {
+        public FunctionPlaceholder(TypeToken type) {
+            super(type);
+        }
+    }
+
+    private static final class TransientPlaceholder extends Placeholder {
+        private int stackOffset;
+
+        public TransientPlaceholder(TypeToken type) {
+            super(type);
+            stackOffset = 0;
+        }
+
+        public boolean lookup(int wordOffset) {
+            if (wordOffset == stackOffset) {
+                stackOffset += 1;
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
@@ -669,7 +719,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             super.onEnterScope(declaration);
 
             if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
-                thisSymbol = new Placeholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
+                thisSymbol = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             }
             stack.push(thisSymbol);
 
@@ -677,7 +727,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 inline(parameterDeclaration);
             }
 
-            TypedSymbol jsrPointer = new Placeholder(IntegralTypeToken.UNSIGNED_SHORT);
+            FunctionPlaceholder jsrPointer = new FunctionPlaceholder(IntegralTypeToken.UNSIGNED_SHORT);
             stack.push(jsrPointer);
 
             for (PStatement enclosedStatement : body) {
@@ -950,9 +1000,9 @@ final class CodeGenerator extends ScopeAwareWalker {
      * context. If this is a constructor, we have to make up our own placeholder.
      */
     private void evaluateParametrizedInvocation(ParametrizedSymbol symbol, List<PExpression> parameters) {
-        Placeholder thisPlaceholder;
+        FunctionPlaceholder thisPlaceholder;
         if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
-            thisPlaceholder = new Placeholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
+            thisPlaceholder = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             if (!(symbol instanceof ConstructorSymbol)) {
                 write("SET PUSH " + lookupExpression(0));
             } else {
@@ -961,10 +1011,10 @@ final class CodeGenerator extends ScopeAwareWalker {
             stack.push(thisPlaceholder);
         }
 
-        Map<PExpression, Placeholder> parameterLocals = Maps.newHashMap();
+        Map<PExpression, FunctionPlaceholder> parameterLocals = Maps.newHashMap();
         for (PExpression parameter : parameters) {
             TypeToken type = types.get(parameter);
-            Placeholder placeholder = new Placeholder(type);
+            FunctionPlaceholder placeholder = new FunctionPlaceholder(type);
             parameterLocals.put(parameter, placeholder);
             inline(parameter);
             switch (type.getWidth()) {
@@ -1059,8 +1109,9 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void evaluateArrayAccess(PArrayAccess arrayAccess, PExpression index) {
         TypeToken elementType = ((ArrayTypeToken) types.get(arrayAccess)).getElementType();
 
-        // since we need to evaluate the index expression, store the array in register Y
-        write("SET Y " + lookupExpression(0));
+        // since we need to evaluate the index expression, push the array
+        requireStack(types.get(arrayAccess));
+        TypedSymbol array = expressionResult;
 
         inline(index);
         if (expressionResult != null) {
@@ -1069,7 +1120,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (elementType.getWidth() > 1) {
             write("MUL A " + elementType.getWidth());
         }
-        write("ADD A Y");
+        write("ADD A " + lookup(array, 0));
 
         switch (elementType.getWidth()) {
             case 4:
