@@ -115,6 +115,7 @@ import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.PTypeToken;
 
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -684,25 +685,29 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseABreakStatement(ABreakStatement statement) {
+        Iterator<FlowStructure> iterator = flowStructures.iterator();
         boolean flag;
         do {
-            if (flowStructures.isEmpty()) {
+            if (iterator.hasNext()) {
+                flag = iterator.next().onBreak();
+            } else {
                 exceptionBuffer.add(new SemanticException(statement, "invalid break"));
                 break;
             }
-            flag = flowStructures.pop().onBreak();
         } while (!flag);
     }
 
     @Override
     public void caseAContinueStatement(AContinueStatement statement) {
+        Iterator<FlowStructure> iterator = flowStructures.iterator();
         boolean flag;
         do {
-            if (flowStructures.isEmpty()) {
+            if (iterator.hasNext()) {
+                flag = iterator.next().onContinue();
+            } else {
                 exceptionBuffer.add(new SemanticException(statement, "invalid continue"));
                 break;
             }
-            flag = flowStructures.pop().onContinue();
         } while (!flag);
     }
 
@@ -712,13 +717,16 @@ final class CodeGenerator extends ScopeAwareWalker {
         // if the expression didn't return a value, coerce whatever it did return into one
         // this is done in case the result is a local/field that will fall out of scope
         requireValue(types.get(statement.getReturnValue()));
+
+        Iterator<FlowStructure> iterator = flowStructures.iterator();
         boolean flag;
         do {
-            if (flowStructures.isEmpty()) {
+            if (iterator.hasNext()) {
+                flag = iterator.next().onReturn();
+            } else {
                 exceptionBuffer.add(new SemanticException(statement, "invalid return"));
                 break;
             }
-            flag = flowStructures.pop().onReturn();
         } while (!flag);
     }
 
