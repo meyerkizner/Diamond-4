@@ -26,6 +26,7 @@ import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
+import com.prealpha.diamond.compiler.node.AConditionalExpression;
 import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
@@ -1811,6 +1812,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         write("SET PC " + getEndLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
+        expressionResult = null;
     }
 
     @Override
@@ -1827,5 +1829,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         write("SET PC " + getEndLabel(expression));
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAConditionalExpression(AConditionalExpression expression) {
+        inline(expression.getCondition());
+        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write("SET PC true_" + getBaseLabel(expression));
+
+        inline(expression.getIfFalse());
+        write("SET PC " + getEndLabel(expression));
+
+        inline(expression.getIfTrue());
     }
 }
