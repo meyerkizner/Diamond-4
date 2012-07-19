@@ -270,7 +270,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void doReclaimLocal(TypedSymbol local) {
-        write(String.format("ADD SP 0x%4x", local.getType().getWidth()));
+        write(String.format("ADD SP 0x%04x", local.getType().getWidth()));
     }
 
     String getStartLabel(Node node) {
@@ -634,12 +634,12 @@ final class CodeGenerator extends ScopeAwareWalker {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
-                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
-                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
+                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
+                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
                         case 2:
-                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
+                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 0), (value & 0x000000000000ffffL)));
+                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 0), (value & 0x000000000000ffffL)));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
@@ -886,7 +886,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseALocalDeclaration(ALocalDeclaration declaration) {
         try {
             LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
-            write(String.format("SUB SP 0x%4x", symbol.getType().getWidth()));
+            write(String.format("SUB SP 0x%04x", symbol.getType().getWidth()));
             expressionResult = symbol; // for the use of caseALocalDeclarationAssignmentTarget
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -1005,12 +1005,12 @@ final class CodeGenerator extends ScopeAwareWalker {
             long value = IntegralTypeToken.parseLiteral(literal.getIntegralLiteral()).longValue();
             switch (types.get(literal).getWidth()) {
                 case 4:
-                    write(String.format("SET X 0x%4x", (value & 0xffff000000000000L) >>> 48));
-                    write(String.format("SET C 0x%4x", (value & 0x0000ffff00000000L) >>> 32));
+                    write(String.format("SET X 0x%04x", (value & 0xffff000000000000L) >>> 48));
+                    write(String.format("SET C 0x%04x", (value & 0x0000ffff00000000L) >>> 32));
                 case 2:
-                    write(String.format("SET B 0x%4x", (value & 0x00000000ffff0000L) >>> 16));
+                    write(String.format("SET B 0x%04x", (value & 0x00000000ffff0000L) >>> 16));
                 case 1:
-                    write(String.format("SET A 0x%4x", (value & 0x000000000000ffffL)));
+                    write(String.format("SET A 0x%04x", (value & 0x000000000000ffffL)));
                     break;
                 default:
                     assert false; // there shouldn't be any other widths
