@@ -887,6 +887,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
             write(String.format("SUB SP 0x%04x", symbol.getType().getWidth()));
+            stack.push(symbol);
             expressionResult = symbol; // for the use of caseALocalDeclarationAssignmentTarget
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -1575,7 +1576,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write(":reclaim_" + getBaseLabel(expression));
-        reclaimLocal(left);
+        if (left instanceof TransientPlaceholder) {
+            reclaimLocal(left);
+        }
         expressionResult = null;
     }
 
@@ -1619,7 +1622,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write(":reclaim_" + getBaseLabel(expression));
-        reclaimLocal(left);
+        if (left instanceof TransientPlaceholder) {
+            reclaimLocal(left);
+        }
         expressionResult = null;
     }
 
@@ -1663,7 +1668,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write(":reclaim_" + getBaseLabel(expression));
-        reclaimLocal(left);
+        if (left instanceof TransientPlaceholder) {
+            reclaimLocal(left);
+        }
         expressionResult = null;
     }
 
@@ -1707,7 +1714,9 @@ final class CodeGenerator extends ScopeAwareWalker {
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write(":reclaim_" + getBaseLabel(expression));
-        reclaimLocal(left);
+        if (left instanceof TransientPlaceholder) {
+            reclaimLocal(left);
+        }
         expressionResult = null;
     }
 
