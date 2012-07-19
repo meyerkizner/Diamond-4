@@ -25,7 +25,9 @@ import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
+import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
 import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
+import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorClassStatement;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
@@ -1793,5 +1795,37 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("BOR X " + lookup(left, 3));
         }
         expressionResult = null;
+    }
+
+    @Override
+    public void caseAConditionalAndExpression(AConditionalAndExpression expression) {
+        inline(expression.getLeft());
+        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write("SET PC false_" + getBaseLabel(expression));
+
+        inline(expression.getRight());
+        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write("SET PC false_" + getBaseLabel(expression));
+
+        write("SET A 0x0001");
+        write("SET PC " + getEndLabel(expression));
+        write(":false_" + getBaseLabel(expression));
+        write("SET A 0x0000");
+    }
+
+    @Override
+    public void caseAConditionalOrExpression(AConditionalOrExpression expression) {
+        inline(expression.getLeft());
+        write(String.format("IFE %s 0x0001", lookupExpression(0)));
+        write("SET PC true_" + getBaseLabel(expression));
+
+        inline(expression.getRight());
+        write(String.format("IFE %s 0x0001", lookupExpression(0)));
+        write("SET PC true_" + getBaseLabel(expression));
+
+        write("SET A 0x0000");
+        write("SET PC " + getEndLabel(expression));
+        write(":true_" + getBaseLabel(expression));
+        write("SET A 0x0001");
     }
 }
