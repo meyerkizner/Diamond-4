@@ -1489,16 +1489,24 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseALessThanExpression(ALessThanExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         assert stack.peek() == left;
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFU" : "IFL";
-        switch (types.get(expression).getWidth()) {
+        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
+        switch (promotedType.getWidth()) {
             case 4:
                 write(instruction + " [SP+3] X");
                 write("SET PC true_" + getBaseLabel(expression));
@@ -1525,16 +1533,24 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAGreaterThanExpression(AGreaterThanExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         assert stack.peek() == left;
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFA" : "IFG";
-        switch (types.get(expression).getWidth()) {
+        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
+        switch (promotedType.getWidth()) {
             case 4:
                 write(instruction + " [SP+3] X");
                 write("SET PC true_" + getBaseLabel(expression));
@@ -1561,16 +1577,24 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseALessOrEqualExpression(ALessOrEqualExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         assert stack.peek() == left;
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFA" : "IFG";
-        switch (types.get(expression).getWidth()) {
+        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
+        switch (promotedType.getWidth()) {
             case 4:
                 write(instruction + " [SP+3] X");
                 write("SET PC false_" + getBaseLabel(expression));
@@ -1597,16 +1621,24 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAGreaterOrEqualExpression(AGreaterOrEqualExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         assert stack.peek() == left;
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFU" : "IFL";
-        switch (types.get(expression).getWidth()) {
+        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
+        switch (promotedType.getWidth()) {
             case 4:
                 write(instruction + " [SP+3] X");
                 write("SET PC false_" + getBaseLabel(expression));
@@ -1633,18 +1665,26 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAEqualExpression(AEqualExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         write("IFE A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
+        if (promotedType.getWidth() >= 2) {
             write("IFE B " + lookup(left, 1));
         }
-        if (types.get(expression).getWidth() >= 4) {
+        if (promotedType.getWidth() >= 4) {
             write("IFE C " + lookup(left, 2));
             write("IFE X " + lookup(left, 3));
         }
@@ -1658,18 +1698,26 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseANotEqualExpression(ANotEqualExpression expression) {
+        TypeToken promotedType;
+        try {
+            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+            throw new AssertionError();
+        }
+
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()), promotedType);
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()), promotedType);
 
         write("IFE A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
+        if (promotedType.getWidth() >= 2) {
             write("IFE B " + lookup(left, 1));
         }
-        if (types.get(expression).getWidth() >= 4) {
+        if (promotedType.getWidth() >= 4) {
             write("IFE C " + lookup(left, 2));
             write("IFE X " + lookup(left, 3));
         }
