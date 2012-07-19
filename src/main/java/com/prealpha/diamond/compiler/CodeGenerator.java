@@ -16,7 +16,10 @@ import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
+import com.prealpha.diamond.compiler.node.ABitwiseAndExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
+import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
+import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
@@ -1231,6 +1234,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("ADD C EX");
             write("ADD X EX");
         }
+        expressionResult = null;
     }
 
     @Override
@@ -1238,6 +1242,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getValue());
         requireValue(types.get(expression));
         write("XOR A 0x0001");
+        expressionResult = null;
     }
 
     @Override
@@ -1256,6 +1261,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             default:
                 assert false; // there shouldn't be any other widths
         }
+        expressionResult = null;
     }
 
     /*
@@ -1726,6 +1732,66 @@ final class CodeGenerator extends ScopeAwareWalker {
         write("SET PC " + getEndLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseABitwiseAndExpression(ABitwiseAndExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        write("AND A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("AND B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("AND C " + lookup(left, 2));
+            write("AND X " + lookup(left, 3));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseABitwiseXorExpression(ABitwiseXorExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        write("XOR A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("XOR B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("XOR C " + lookup(left, 2));
+            write("XOR X " + lookup(left, 3));
+        }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseABitwiseOrExpression(ABitwiseOrExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        write("BOR A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("BOR B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("BOR C " + lookup(left, 2));
+            write("BOR X " + lookup(left, 3));
+        }
         expressionResult = null;
     }
 }
