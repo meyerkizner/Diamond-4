@@ -27,8 +27,10 @@ final class DoFlowStructure implements FlowStructure {
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != enclosingScope) {
+        Scope scope = codeGenerator.getScope();
+        while (scope != enclosingScope) {
             codeGenerator.reclaimScope();
+            scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(doStatement.getCondition()));
         return true;
@@ -36,8 +38,10 @@ final class DoFlowStructure implements FlowStructure {
 
     @Override
     public boolean onContinue() {
-        while (codeGenerator.getScope() != enclosingScope) {
+        Scope scope = codeGenerator.getScope();
+        while (scope != enclosingScope) {
             codeGenerator.reclaimScope();
+            scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(doStatement.getCondition()));
         return true;

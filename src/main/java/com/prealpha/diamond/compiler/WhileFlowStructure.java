@@ -27,8 +27,10 @@ final class WhileFlowStructure implements FlowStructure {
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != enclosingScope) {
+        Scope scope = codeGenerator.getScope();
+        while (scope != enclosingScope) {
             codeGenerator.reclaimScope();
+            scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(whileStatement.getBody()));
         return true;
@@ -36,8 +38,10 @@ final class WhileFlowStructure implements FlowStructure {
 
     @Override
     public boolean onContinue() {
-        while (codeGenerator.getScope() != enclosingScope) {
+        Scope scope = codeGenerator.getScope();
+        while (scope != enclosingScope) {
             codeGenerator.reclaimScope();
+            scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(whileStatement.getCondition()));
         return true;

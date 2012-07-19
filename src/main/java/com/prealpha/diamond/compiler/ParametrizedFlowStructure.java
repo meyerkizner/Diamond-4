@@ -6,8 +6,6 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.diamond.compiler.node.Node;
-
 import static com.google.common.base.Preconditions.*;
 
 final class ParametrizedFlowStructure implements FlowStructure {
@@ -33,8 +31,10 @@ final class ParametrizedFlowStructure implements FlowStructure {
 
     @Override
     public boolean onReturn() {
-        while (codeGenerator.getScope() != enclosingScope) {
+        Scope scope = codeGenerator.getScope();
+        while (scope != enclosingScope) {
             codeGenerator.reclaimScope();
+            scope = scope.getParent();
         }
         codeGenerator.reclaimScope();
         codeGenerator.write("SET PC POP");
