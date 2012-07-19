@@ -829,8 +829,8 @@ final class CodeGenerator extends ScopeAwareWalker {
             if ((!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol)
                     && symbol.getDeclaringClass() != null) {
                 thisSymbol = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
+                stack.push(thisSymbol);
             }
-            stack.push(thisSymbol);
 
             for (PLocalDeclaration parameterDeclaration : parameters) {
                 inline(parameterDeclaration);
