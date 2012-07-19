@@ -271,7 +271,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void doReclaimLocal(TypedSymbol local) {
-        write(String.format("ADD SP 0x%04x", local.getType().getWidth()));
+        int width = local.getType().getWidth();
+        if (local instanceof TransientPlaceholder) {
+            width -= ((TransientPlaceholder) local).stackOffset;
+        }
+        write(String.format("ADD SP 0x%04x", width));
     }
 
     String getStartLabel(Node node) {
@@ -324,8 +328,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 return String.format("[SP+%d]", symbolOffset + wordOffset);
             }
         } else if (symbol instanceof TransientPlaceholder) {
-            checkArgument(((TransientPlaceholder) symbol).lookup(wordOffset));
-            return "POP";
+            return ((TransientPlaceholder) symbol).lookup(wordOffset);
         } else if (symbol instanceof ArrayElementPlaceholder) {
             if (wordOffset == 0) {
                 return "[A]";
@@ -519,12 +522,14 @@ final class CodeGenerator extends ScopeAwareWalker {
             stackOffset = 0;
         }
 
-        public boolean lookup(int wordOffset) {
+        public String lookup(int wordOffset) {
             if (wordOffset == stackOffset) {
                 stackOffset += 1;
-                return true;
+                return "POP";
+            } else if (wordOffset > stackOffset) {
+                return String.format("[SP+%d]", wordOffset - stackOffset);
             } else {
-                return false;
+                throw new IllegalArgumentException();
             }
         }
     }
@@ -1567,19 +1572,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), promotedType);
 
-        assert stack.peek() == left;
         String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
         switch (promotedType.getWidth()) {
             case 4:
-                write(instruction + " [SP+3] X");
+                write(String.format("%s %s X", instruction, lookup(left, 3)));
                 write("SET PC true_" + getBaseLabel(expression));
-                write(instruction + " [SP+2] C");
+                write(String.format("%s %s C", instruction, lookup(left, 2)));
                 write("SET PC true_" + getBaseLabel(expression));
             case 2:
-                write(instruction + " [SP+1] B");
+                write(String.format("%s %s B", instruction, lookup(left, 1)));
                 write("SET PC true_" + getBaseLabel(expression));
             case 1:
-                write(instruction + " [SP] A");
+                write(String.format("%s %s A", instruction, lookup(left, 0)));
                 write("SET PC true_" + getBaseLabel(expression));
                 break;
             default:
@@ -1613,19 +1617,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), promotedType);
 
-        assert stack.peek() == left;
         String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
         switch (promotedType.getWidth()) {
             case 4:
-                write(instruction + " [SP+3] X");
+                write(String.format("%s %s X", instruction, lookup(left, 3)));
                 write("SET PC true_" + getBaseLabel(expression));
-                write(instruction + " [SP+2] C");
+                write(String.format("%s %s C", instruction, lookup(left, 2)));
                 write("SET PC true_" + getBaseLabel(expression));
             case 2:
-                write(instruction + " [SP+1] B");
+                write(String.format("%s %s B", instruction, lookup(left, 1)));
                 write("SET PC true_" + getBaseLabel(expression));
             case 1:
-                write(instruction + " [SP] A");
+                write(String.format("%s %s A", instruction, lookup(left, 0)));
                 write("SET PC true_" + getBaseLabel(expression));
                 break;
             default:
@@ -1659,19 +1662,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), promotedType);
 
-        assert stack.peek() == left;
         String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
         switch (promotedType.getWidth()) {
             case 4:
-                write(instruction + " [SP+3] X");
+                write(String.format("%s %s X", instruction, lookup(left, 3)));
                 write("SET PC false_" + getBaseLabel(expression));
-                write(instruction + " [SP+2] C");
+                write(String.format("%s %s C", instruction, lookup(left, 2)));
                 write("SET PC false_" + getBaseLabel(expression));
             case 2:
-                write(instruction + " [SP+1] B");
+                write(String.format("%s %s B", instruction, lookup(left, 1)));
                 write("SET PC false_" + getBaseLabel(expression));
             case 1:
-                write(instruction + " [SP] A");
+                write(String.format("%s %s A", instruction, lookup(left, 0)));
                 write("SET PC false_" + getBaseLabel(expression));
                 break;
             default:
@@ -1705,19 +1707,18 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), promotedType);
 
-        assert stack.peek() == left;
         String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
         switch (promotedType.getWidth()) {
             case 4:
-                write(instruction + " [SP+3] X");
+                write(String.format("%s %s X", instruction, lookup(left, 3)));
                 write("SET PC false_" + getBaseLabel(expression));
-                write(instruction + " [SP+2] C");
+                write(String.format("%s %s C", instruction, lookup(left, 2)));
                 write("SET PC false_" + getBaseLabel(expression));
             case 2:
-                write(instruction + " [SP+1] B");
+                write(String.format("%s %s B", instruction, lookup(left, 1)));
                 write("SET PC false_" + getBaseLabel(expression));
             case 1:
-                write(instruction + " [SP] A");
+                write(String.format("%s %s A", instruction, lookup(left, 0)));
                 write("SET PC false_" + getBaseLabel(expression));
                 break;
             default:
