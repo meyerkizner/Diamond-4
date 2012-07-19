@@ -1148,24 +1148,32 @@ final class CodeGenerator extends ScopeAwareWalker {
             thisPlaceholder = null;
         }
 
+        assert parameters.size() == symbol.getParameters().size();
         Map<PExpression, FunctionPlaceholder> parameterLocals = Maps.newHashMap();
-        for (PExpression parameter : parameters) {
-            TypeToken type = types.get(parameter);
+        for (int i = 0; i < parameters.size(); i++) {
+            PExpression parameter = parameters.get(i);
+            TypeToken type = symbol.getParameters().get(i).getType();
+            int lastWord = types.get(parameter).getWidth() - 1;
+            boolean signed = (types.get(parameter) instanceof IntegralTypeToken
+                    && ((IntegralTypeToken) types.get(parameter)).isSigned());
+
             FunctionPlaceholder placeholder = new FunctionPlaceholder(type);
             parameterLocals.put(parameter, placeholder);
             inline(parameter);
-            switch (type.getWidth()) {
-                case 4:
-                    write("SET PUSH " + lookup(expressionResult, 3));
-                    write("SET PUSH " + lookup(expressionResult, 2));
-                case 2:
-                    write("SET PUSH " + lookup(expressionResult, 1));
-                case 1:
-                    write("SET PUSH " + lookup(expressionResult, 0));
-                    break;
-                default:
-                    assert false; // there shouldn't be any other widths
+
+            for (int j = type.getWidth() - 1; j >= 0; j--) {
+                if (types.get(parameter).getWidth() < (j + 1)) {
+                    if (signed) {
+                        write("SET PUSH " + lookup(expressionResult, lastWord));
+                        write("ASR [SP] 16");
+                    } else {
+                        write("SET PUSH 0x0000");
+                    }
+                } else {
+                    write("SET PUSH " + lookup(expressionResult, j));
+                }
             }
+
             stack.push(placeholder);
         }
 
