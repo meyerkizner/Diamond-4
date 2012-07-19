@@ -9,6 +9,7 @@ package com.prealpha.diamond.compiler;
 import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.lexer.Lexer;
 import com.prealpha.diamond.compiler.lexer.LexerException;
+import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.Start;
 import com.prealpha.diamond.compiler.parser.Parser;
 import com.prealpha.diamond.compiler.parser.ParserException;
@@ -37,7 +38,7 @@ public final class Compiler {
         tree.apply(includeProcessor);
         checkBuffer(exceptionBuffer);
 
-        SymbolTableBuilder symbolTableBuilder = new SymbolTableBuilder(exceptionBuffer);
+        SymbolTableBuilder symbolTableBuilder = new SymbolTableBuilder((AProgram) tree.getPProgram(), exceptionBuffer);
         tree.apply(symbolTableBuilder);
         checkBuffer(exceptionBuffer);
 

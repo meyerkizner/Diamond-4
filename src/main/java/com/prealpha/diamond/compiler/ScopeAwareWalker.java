@@ -14,6 +14,7 @@ import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.Node;
 
@@ -40,17 +41,25 @@ import java.util.Map;
 abstract class ScopeAwareWalker extends DepthFirstAdapter {
     private final Map<Node, Scope> scopes;
 
+    private final AProgram root;
+
     private Scope current;
 
-    protected ScopeAwareWalker() {
-        scopes = Maps.newHashMap();
-        current = new Scope(null);
-        scopes.put(null, current);
+    protected ScopeAwareWalker(AProgram root) {
+        this.scopes = Maps.newHashMap();
+        this.root = root;
+        this.current = new Scope(null);
+        scopes.put(this.root, this.current);
     }
 
     protected ScopeAwareWalker(ScopeAwareWalker scopeSource) {
         scopes = ImmutableMap.copyOf(scopeSource.scopes);
-        current = scopes.get(null);
+        root = scopeSource.root;
+        current = getRootScope();
+    }
+
+    protected final Scope getRootScope() {
+        return scopes.get(root);
     }
 
     protected final Scope getScope() {

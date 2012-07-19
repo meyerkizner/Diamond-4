@@ -11,6 +11,7 @@ import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
+import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 
 import java.util.List;
@@ -22,8 +23,8 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
 
     private ClassSymbol currentClass;
 
-    public SymbolTableBuilder(List<Exception> exceptionBuffer) {
-        super();
+    public SymbolTableBuilder(AProgram root, List<Exception> exceptionBuffer) {
+        super(root);
         checkNotNull(exceptionBuffer);
         this.exceptionBuffer = exceptionBuffer;
     }

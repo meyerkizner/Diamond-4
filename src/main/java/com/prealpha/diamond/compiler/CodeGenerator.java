@@ -1081,7 +1081,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                     ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                     scope = getScope(classSymbol.getDeclaration());
                 } else {
-                    scope = getScope(null);
+                    scope = getRootScope();
                 }
                 List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
                 FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
