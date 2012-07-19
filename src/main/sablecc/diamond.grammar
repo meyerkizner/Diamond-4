@@ -336,9 +336,9 @@ Productions
 					{caret} left_hand_side caret_assign assignment_expression {-> New assignment.bitwise_xor(left_hand_side.assignment_target, assignment_expression.expression)} |
 					{bar} left_hand_side bar_assign assignment_expression {-> New assignment.bitwise_or(left_hand_side.assignment_target, assignment_expression.expression)};
 	left_hand_side {-> assignment_target} = {local_declaration} local_declaration {-> New assignment_target.local_declaration(local_declaration)} |
-											{identifier} identifier {-> New assignment_target.expression(New primary_expression.identifier(identifier))} |
-											{qualified_name} qualified_name {-> New assignment_target.expression(New primary_expression.qualified_name(qualified_name))} |
-											{array_access} array_access {-> New assignment_target.expression(New primary_expression.array_access(array_access))};
+											{identifier} identifier {-> New assignment_target.identifier(identifier)} |
+											{qualified_name} qualified_name {-> New assignment_target.qualified_name(qualified_name)} |
+											{array_access} array_access {-> New assignment_target.array_access(array_access)};
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 	
 	expression = assignment_expression {-> assignment_expression.expression};
@@ -454,8 +454,10 @@ Abstract Syntax Tree
 					{shift_left} [target]:assignment_target [value]:expression |
 					{shift_right} [target]:assignment_target [value]:expression |
 					{unsigned_shift_right} [target]:assignment_target [value]:expression;
-	assignment_target = {expression} primary_expression |
-						{local_declaration} local_declaration;
+	assignment_target = {local_declaration} local_declaration |
+						{identifier} identifier |
+						{qualified_name} qualified_name |
+						{array_access} array_access;
 
 	type_token =    {boolean} |
 					{signed_short} |
