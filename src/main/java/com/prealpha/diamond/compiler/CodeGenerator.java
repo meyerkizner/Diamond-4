@@ -42,10 +42,14 @@ import com.prealpha.diamond.compiler.node.AFunctionClassStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AFunctionInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AFunctionTopLevelStatement;
+import com.prealpha.diamond.compiler.node.AGreaterOrEqualExpression;
+import com.prealpha.diamond.compiler.node.AGreaterThanExpression;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AIntegralLiteral;
+import com.prealpha.diamond.compiler.node.ALessOrEqualExpression;
+import com.prealpha.diamond.compiler.node.ALessThanExpression;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
@@ -1478,6 +1482,150 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("SHR D Y");
             write("AND C EX");
         }
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseALessThanExpression(ALessThanExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        assert stack.peek() == left;
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFU" : "IFL";
+        switch (types.get(expression).getWidth()) {
+            case 4:
+                write(instruction + " [SP+3] X");
+                write("SET PC true_" + getBaseLabel(expression));
+                write(instruction + " [SP+2] C");
+                write("SET PC true_" + getBaseLabel(expression));
+            case 2:
+                write(instruction + " [SP+1] B");
+                write("SET PC true_" + getBaseLabel(expression));
+            case 1:
+                write(instruction + " [SP] A");
+                write("SET PC true_" + getBaseLabel(expression));
+                break;
+            default:
+                assert false;
+        }
+        write("SET A 0x0000");
+        write("SET PC reclaim_" + getBaseLabel(expression));
+        write(":true_" + getBaseLabel(expression));
+        write("SET A 0x0001");
+        write(":reclaim_" + getBaseLabel(expression));
+        reclaimLocal(left);
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAGreaterThanExpression(AGreaterThanExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        assert stack.peek() == left;
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFA" : "IFG";
+        switch (types.get(expression).getWidth()) {
+            case 4:
+                write(instruction + " [SP+3] X");
+                write("SET PC true_" + getBaseLabel(expression));
+                write(instruction + " [SP+2] C");
+                write("SET PC true_" + getBaseLabel(expression));
+            case 2:
+                write(instruction + " [SP+1] B");
+                write("SET PC true_" + getBaseLabel(expression));
+            case 1:
+                write(instruction + " [SP] A");
+                write("SET PC true_" + getBaseLabel(expression));
+                break;
+            default:
+                assert false;
+        }
+        write("SET A 0x0000");
+        write("SET PC reclaim_" + getBaseLabel(expression));
+        write(":true_" + getBaseLabel(expression));
+        write("SET A 0x0001");
+        write(":reclaim_" + getBaseLabel(expression));
+        reclaimLocal(left);
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseALessOrEqualExpression(ALessOrEqualExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        assert stack.peek() == left;
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFA" : "IFG";
+        switch (types.get(expression).getWidth()) {
+            case 4:
+                write(instruction + " [SP+3] X");
+                write("SET PC false_" + getBaseLabel(expression));
+                write(instruction + " [SP+2] C");
+                write("SET PC false_" + getBaseLabel(expression));
+            case 2:
+                write(instruction + " [SP+1] B");
+                write("SET PC false_" + getBaseLabel(expression));
+            case 1:
+                write(instruction + " [SP] A");
+                write("SET PC false_" + getBaseLabel(expression));
+                break;
+            default:
+                assert false;
+        }
+        write("SET A 0x0001");
+        write("SET PC reclaim_" + getBaseLabel(expression));
+        write(":false_" + getBaseLabel(expression));
+        write("SET A 0x0000");
+        write(":reclaim_" + getBaseLabel(expression));
+        reclaimLocal(left);
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAGreaterOrEqualExpression(AGreaterOrEqualExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        assert stack.peek() == left;
+        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "IFU" : "IFL";
+        switch (types.get(expression).getWidth()) {
+            case 4:
+                write(instruction + " [SP+3] X");
+                write("SET PC false_" + getBaseLabel(expression));
+                write(instruction + " [SP+2] C");
+                write("SET PC false_" + getBaseLabel(expression));
+            case 2:
+                write(instruction + " [SP+1] B");
+                write("SET PC false_" + getBaseLabel(expression));
+            case 1:
+                write(instruction + " [SP] A");
+                write("SET PC false_" + getBaseLabel(expression));
+                break;
+            default:
+                assert false;
+        }
+        write("SET A 0x0001");
+        write("SET PC reclaim_" + getBaseLabel(expression));
+        write(":false_" + getBaseLabel(expression));
+        write("SET A 0x0000");
+        write(":reclaim_" + getBaseLabel(expression));
+        reclaimLocal(left);
         expressionResult = null;
     }
 }
