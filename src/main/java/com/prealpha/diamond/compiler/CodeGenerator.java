@@ -1197,9 +1197,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol array = expressionResult;
 
         inline(index);
-        if (expressionResult != null) {
-            write("SET A " + lookupExpression(0));
-        }
+        requireValue(types.get(index));
         if (elementType.getWidth() > 1) {
             write("MUL A " + elementType.getWidth());
         }
