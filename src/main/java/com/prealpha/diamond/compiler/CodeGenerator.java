@@ -825,7 +825,8 @@ final class CodeGenerator extends ScopeAwareWalker {
 
             super.onEnterScope(declaration);
 
-            if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
+            if ((!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol)
+                    && symbol.getDeclaringClass() != null) {
                 thisSymbol = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             }
             stack.push(thisSymbol);
@@ -1126,7 +1127,8 @@ final class CodeGenerator extends ScopeAwareWalker {
      */
     private void evaluateParametrizedInvocation(ParametrizedSymbol symbol, List<PExpression> parameters) {
         FunctionPlaceholder thisPlaceholder;
-        if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
+        if ((!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol)
+                && symbol.getDeclaringClass() != null) {
             thisPlaceholder = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             if (!(symbol instanceof ConstructorSymbol)) {
                 write("SET PUSH " + lookup(expressionResult, 0));
@@ -1134,6 +1136,8 @@ final class CodeGenerator extends ScopeAwareWalker {
                 throw new NoHeapException();
             }
             stack.push(thisPlaceholder);
+        } else {
+            thisPlaceholder = null;
         }
 
         Map<PExpression, FunctionPlaceholder> parameterLocals = Maps.newHashMap();
@@ -1163,7 +1167,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             reclaimLocal(parameterLocals.get(parameter));
         }
 
-        if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
+        if (thisPlaceholder != null) {
             write("ADD SP 1"); // clear out this
         }
 
