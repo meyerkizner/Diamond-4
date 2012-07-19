@@ -50,6 +50,7 @@ import com.prealpha.diamond.compiler.node.AIfThenStatement;
 import com.prealpha.diamond.compiler.node.AIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ALessOrEqualExpression;
 import com.prealpha.diamond.compiler.node.ALessThanExpression;
+import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AModulusAssignment;
@@ -345,6 +346,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
+    public void outALiteralPrimaryExpression(ALiteralPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getLiteral()));
+    }
+
+    @Override
     public void outAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
         try {
             try {
@@ -417,7 +423,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAIntegralLiteral(AIntegralLiteral literal) {
         try {
-            types.put(literal.parent(), IntegralTypeToken.fromLiteral(literal.getIntegralLiteral()));
+            types.put(literal, IntegralTypeToken.fromLiteral(literal.getIntegralLiteral()));
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -425,17 +431,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAStringLiteral(AStringLiteral literal) {
-        types.put(literal.parent(), new UserDefinedTypeToken("String"));
+        types.put(literal, new UserDefinedTypeToken("String"));
     }
 
     @Override
     public void outATrueLiteral(ATrueLiteral literal) {
-        types.put(literal.parent(), BooleanTypeToken.INSTANCE);
+        types.put(literal, BooleanTypeToken.INSTANCE);
     }
 
     @Override
     public void outAFalseLiteral(AFalseLiteral literal) {
-        types.put(literal.parent(), BooleanTypeToken.INSTANCE);
+        types.put(literal, BooleanTypeToken.INSTANCE);
     }
 
     @Override
