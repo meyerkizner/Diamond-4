@@ -32,6 +32,7 @@ import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
+import com.prealpha.diamond.compiler.node.AEqualExpression;
 import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
@@ -54,6 +55,7 @@ import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
+import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
@@ -1626,6 +1628,56 @@ final class CodeGenerator extends ScopeAwareWalker {
         write("SET A 0x0000");
         write(":reclaim_" + getBaseLabel(expression));
         reclaimLocal(left);
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseAEqualExpression(AEqualExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        write("IFE A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("IFE B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("IFE C " + lookup(left, 2));
+            write("IFE X " + lookup(left, 3));
+        }
+        write("SET PC true_" + getBaseLabel(expression));
+        write("SET A 0x0000");
+        write("SET PC " + getEndLabel(expression));
+        write(":true_" + getBaseLabel(expression));
+        write("SET A 0x0001");
+        expressionResult = null;
+    }
+
+    @Override
+    public void caseANotEqualExpression(ANotEqualExpression expression) {
+        inline(expression.getLeft());
+        requireStack(types.get(expression.getLeft()), types.get(expression));
+        TypedSymbol left = expressionResult;
+
+        inline(expression.getRight());
+        requireValue(types.get(expression.getRight()), types.get(expression));
+
+        write("IFE A " + lookup(left, 0));
+        if (types.get(expression).getWidth() >= 2) {
+            write("IFE B " + lookup(left, 1));
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("IFE C " + lookup(left, 2));
+            write("IFE X " + lookup(left, 3));
+        }
+        write("SET PC false_" + getBaseLabel(expression));
+        write("SET A 0x0001");
+        write("SET PC " + getEndLabel(expression));
+        write(":false_" + getBaseLabel(expression));
+        write("SET A 0x0000");
         expressionResult = null;
     }
 }
