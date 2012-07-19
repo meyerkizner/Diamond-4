@@ -953,6 +953,21 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression primaryExpression) {
         inline(primaryExpression.getArrayAccess());
+
+        // see the comment above evaluateArrayAccess(PArrayAccess, PExpression)
+        switch (types.get(primaryExpression).getWidth()) {
+            case 4:
+                write("SET X [A+3]");
+                write("SET C [A+2]");
+            case 2:
+                write("SET B [A+1]");
+            case 1:
+                write("SET A [A]"); // note that this has to be done last!
+                break;
+            default:
+                assert false; // there shouldn't be any other widths
+        }
+        expressionResult = null;
     }
 
     @Override
@@ -1187,7 +1202,10 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     /*
-     * The array should be the expressionResult from the invoking context.
+     * The array should be the expressionResult from the invoking context. Note that the value stored in the array is
+     * not actually copied to the registers. This is done in
+     * caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression) so that this method may be re-used in evaluating
+     * assignments.
      */
     private void evaluateArrayAccess(PArrayAccess arrayAccess, PExpression index) {
         TypeToken elementType = ((ArrayTypeToken) types.get(arrayAccess)).getElementType();
@@ -1202,20 +1220,6 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("MUL A " + elementType.getWidth());
         }
         write("ADD A " + lookup(array, 0));
-
-        switch (elementType.getWidth()) {
-            case 4:
-                write("SET X [A+3]");
-                write("SET C [A+2]");
-            case 2:
-                write("SET B [A+1]");
-            case 1:
-                write("SET A [A]"); // note that this has to be done last!
-                break;
-            default:
-                assert false; // there shouldn't be any other widths
-        }
-        expressionResult = null;
     }
 
     @Override
