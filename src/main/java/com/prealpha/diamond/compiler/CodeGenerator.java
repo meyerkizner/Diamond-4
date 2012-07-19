@@ -282,43 +282,35 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private String lookup(TypedSymbol symbol, int wordOffset) {
-        assert stack.contains(symbol);
-        checkArgument(wordOffset < symbol.getType().getWidth());
+        checkArgument(symbol == null || wordOffset < symbol.getType().getWidth());
         checkArgument(wordOffset >= 0);
-        if (symbol instanceof TransientPlaceholder) {
+        if (symbol instanceof LocalSymbol || symbol instanceof FunctionPlaceholder) {
+            assert stack.contains(symbol);
+            int symbolOffset = 0;
+            for (TypedSymbol stackSymbol : stack) {
+                if (stackSymbol == symbol) {
+                    break;
+                } else {
+                    symbolOffset += stackSymbol.getType().getWidth();
+                }
+            }
+            if (symbolOffset == 0 && wordOffset == 0) {
+                return "[SP]";
+            } else {
+                return String.format("[SP+%d]", symbolOffset + wordOffset);
+            }
+        } else if (symbol instanceof TransientPlaceholder) {
             checkArgument(((TransientPlaceholder) symbol).lookup(wordOffset));
             return "POP";
-        }
-
-        int symbolOffset = 0;
-        for (TypedSymbol stackSymbol : stack) {
-            if (stackSymbol == symbol) {
-                break;
-            } else {
-                symbolOffset += stackSymbol.getType().getWidth();
-            }
-        }
-        if (symbolOffset == 0 && wordOffset == 0) {
-            return "[SP]";
-        } else {
-            return String.format("[SP+%d]", symbolOffset + wordOffset);
-        }
-    }
-
-    private String lookupExpression(int wordOffset) {
-        if (expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder) {
-            // the expression result is a variable which is on the stack
-            assert stack.contains(expressionResult);
-            return lookup(expressionResult, wordOffset);
-        } else if (expressionResult instanceof FieldSymbol) {
-            if (!expressionResult.getModifiers().contains(Modifier.STATIC)) {
+        } else if (symbol instanceof FieldSymbol) {
+            if (!symbol.getModifiers().contains(Modifier.STATIC)) {
                 // the object we need for this field is located in register A
-                ClassSymbol fieldClass = ((FieldSymbol) expressionResult).getDeclaringClass();
+                ClassSymbol fieldClass = ((FieldSymbol) symbol).getDeclaringClass();
                 Scope scope = getScope(fieldClass.getDeclaration());
                 List<FieldSymbol> allFields = scope.getFields();
                 int fieldOffset = 0;
                 for (FieldSymbol field : allFields) {
-                    if (field != expressionResult) {
+                    if (field != symbol) {
                         fieldOffset += field.getType().getWidth();
                     } else {
                         break;
@@ -332,11 +324,11 @@ final class CodeGenerator extends ScopeAwareWalker {
                 }
             } else {
                 // see #caseAFieldDeclaration(AFieldDeclaration)
-                return String.format("%d_%s", wordOffset, getBaseLabel(expressionResult.getDeclaration()));
+                return String.format("%d_%s", wordOffset, getBaseLabel(symbol.getDeclaration()));
             }
         } else {
             // the expression result is a value, stored in registers A, B, C, and X (as needed)
-            assert expressionResult == null;
+            assert symbol == null;
             switch (wordOffset) {
                 case 0:
                     return "A";
@@ -366,31 +358,31 @@ final class CodeGenerator extends ScopeAwareWalker {
                 case 4:
                     if (type.getWidth() < 4) {
                         if (signed) {
-                            write("SET X " + lookupExpression(lastWord));
+                            write("SET X " + lookup(expressionResult, lastWord));
                             write("ASR X 16");
-                            write("SET C " + lookupExpression(lastWord));
+                            write("SET C " + lookup(expressionResult, lastWord));
                             write("ASR C 16");
                         } else {
                             write("SET X 0x0000");
                             write("SET C 0x0000");
                         }
                     } else {
-                        write("SET X " + lookupExpression(3));
-                        write("SET C " + lookupExpression(2));
+                        write("SET X " + lookup(expressionResult, 3));
+                        write("SET C " + lookup(expressionResult, 2));
                     }
                 case 2:
                     if (type.getWidth() < 2) {
                         if (signed) {
-                            write("SET B " + lookupExpression(lastWord));
+                            write("SET B " + lookup(expressionResult, lastWord));
                             write("ASR B 16");
                         } else {
                             write("SET B 0x0000");
                         }
                     } else {
-                        write("SET B " + lookupExpression(1));
+                        write("SET B " + lookup(expressionResult, 1));
                     }
                 case 1:
-                    write("SET A " + lookupExpression(0));
+                    write("SET A " + lookup(expressionResult, 0));
                     break;
                 default:
                     assert false;
@@ -415,32 +407,32 @@ final class CodeGenerator extends ScopeAwareWalker {
                 case 4:
                     if (type.getWidth() < 4) {
                         if (signed) {
-                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("SET PUSH " + lookup(expressionResult, lastWord));
                             write("ASR [SP] 16");
-                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("SET PUSH " + lookup(expressionResult, lastWord));
                             write("ASR [SP] 16");
                         } else {
                             write("SET PUSH 0x0000");
                             write("SET PUSH 0x0000");
                         }
                     } else {
-                        write("SET PUSH " + lookupExpression(3));
-                        write("SET PUSH " + lookupExpression(2));
+                        write("SET PUSH " + lookup(expressionResult, 3));
+                        write("SET PUSH " + lookup(expressionResult, 2));
                     }
                 case 2:
                     if (type.getWidth() < 2) {
                         if (signed) {
-                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("SET PUSH " + lookup(expressionResult, lastWord));
                             write("ASR [SP] 16");
                         } else {
                             write("SET PUSH 0x0000");
                             write("SET PUSH 0x0000");
                         }
                     } else {
-                        write("SET PUSH " + lookupExpression(1));
+                        write("SET PUSH " + lookup(expressionResult, 1));
                     }
                 case 1:
-                    write("SET PUSH " + lookupExpression(0));
+                    write("SET PUSH " + lookup(expressionResult, 0));
                     break;
                 default:
                     assert false;
@@ -532,7 +524,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void evaluateIfThenElse(Node statement, PExpression condition, PStatement thenBody, PStatement elseBody) {
         inline(condition);
 
-        write("IFN " + lookupExpression(0) + " 0x0000");
+        write("IFN " + lookup(expressionResult, 0) + " 0x0000");
         write("SET PC " + getStartLabel(thenBody));
 
         if (elseBody != null) {
@@ -548,7 +540,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getCondition());
 
-        write("IFE " + lookupExpression(0) + " 0x0000");
+        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
         write("SET PC " + getEndLabel(statement.getBody()));
 
         inline(statement.getBody());
@@ -571,7 +563,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getCondition());
 
-        write("IFE " + lookupExpression(0) + " 0x0000");
+        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
         write("SET PC " + getEndLabel(statement.getBody()));
 
         inline(statement.getBody());
@@ -588,7 +580,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getBody());
 
         inline(statement.getCondition());
-        write("IFN " + lookupExpression(0) + " 0x0000");
+        write("IFN " + lookup(expressionResult, 0) + " 0x0000");
         write("SET PC " + getStartLabel(statement.getBody()));
 
         flowStructures.pop();
@@ -607,12 +599,12 @@ final class CodeGenerator extends ScopeAwareWalker {
                     long value = IntegralTypeToken.parseLiteral(literal).longValue();
                     switch (types.get(statement.getValue()).getWidth()) {
                         case 4:
-                            write(String.format("IFE %s 0x%4x", lookupExpression(3), (value & 0xffff000000000000L) >>> 48));
-                            write(String.format("IFE %s 0x%4x", lookupExpression(2), (value & 0x0000ffff00000000L) >>> 32));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
                         case 2:
-                            write(String.format("IFE %s 0x%4x", lookupExpression(1), (value & 0x00000000ffff0000L) >>> 16));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
                         case 1:
-                            write(String.format("IFE %s 0x%4x", lookupExpression(0), (value & 0x000000000000ffffL)));
+                            write(String.format("IFE %s 0x%4x", lookup(expressionResult, 0), (value & 0x000000000000ffffL)));
                             break;
                         default:
                             assert false; // there shouldn't be any other widths
@@ -919,7 +911,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol symbol = classScope.resolveField(fieldName);
-                write("SET A " + lookupExpression(0));
+                write("SET A " + lookup(expressionResult, 0));
                 expressionResult = symbol;
             } else {
                 throw new SemanticException("built-in types do not currently support any fields");
@@ -1102,7 +1094,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol) {
             thisPlaceholder = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             if (!(symbol instanceof ConstructorSymbol)) {
-                write("SET PUSH " + lookupExpression(0));
+                write("SET PUSH " + lookup(expressionResult, 0));
             } else {
                 throw new NoHeapException();
             }
@@ -1117,12 +1109,12 @@ final class CodeGenerator extends ScopeAwareWalker {
             inline(parameter);
             switch (type.getWidth()) {
                 case 4:
-                    write("SET PUSH " + lookupExpression(3));
-                    write("SET PUSH " + lookupExpression(2));
+                    write("SET PUSH " + lookup(expressionResult, 3));
+                    write("SET PUSH " + lookup(expressionResult, 2));
                 case 2:
-                    write("SET PUSH " + lookupExpression(1));
+                    write("SET PUSH " + lookup(expressionResult, 1));
                 case 1:
-                    write("SET PUSH " + lookupExpression(0));
+                    write("SET PUSH " + lookup(expressionResult, 0));
                     break;
                 default:
                     assert false; // there shouldn't be any other widths
@@ -1191,7 +1183,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
-                write("SET A " + lookupExpression(0));
+                write("SET A " + lookup(expressionResult, 0));
                 expressionResult = fieldSymbol;
             } else {
                 throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
@@ -1803,11 +1795,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalAndExpression(AConditionalAndExpression expression) {
         inline(expression.getLeft());
-        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
         write("SET PC false_" + getBaseLabel(expression));
 
         inline(expression.getRight());
-        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
         write("SET PC false_" + getBaseLabel(expression));
 
         write("SET A 0x0001");
@@ -1820,11 +1812,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalOrExpression(AConditionalOrExpression expression) {
         inline(expression.getLeft());
-        write(String.format("IFE %s 0x0001", lookupExpression(0)));
+        write(String.format("IFE %s 0x0001", lookup(expressionResult, 0)));
         write("SET PC true_" + getBaseLabel(expression));
 
         inline(expression.getRight());
-        write(String.format("IFE %s 0x0001", lookupExpression(0)));
+        write(String.format("IFE %s 0x0001", lookup(expressionResult, 0)));
         write("SET PC true_" + getBaseLabel(expression));
 
         write("SET A 0x0000");
@@ -1837,7 +1829,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalExpression(AConditionalExpression expression) {
         inline(expression.getCondition());
-        write(String.format("IFE %s 0x0000", lookupExpression(0)));
+        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
         write("SET PC true_" + getBaseLabel(expression));
 
         inline(expression.getIfFalse());
