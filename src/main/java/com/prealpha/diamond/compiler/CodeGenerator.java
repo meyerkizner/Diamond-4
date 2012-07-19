@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
@@ -113,7 +112,6 @@ import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.PTypeToken;
-import com.prealpha.diamond.compiler.node.Token;
 
 import java.util.Deque;
 import java.util.List;
@@ -282,19 +280,21 @@ final class CodeGenerator extends ScopeAwareWalker {
         return "end_" + getBaseLabel(node);
     }
 
+    private final Map<Node, Integer> labels = Maps.newHashMap();
+
+    private int nextLabel = 0;
+
     private String getBaseLabel(Node node) {
-        class LineNumberFinder extends DepthFirstAdapter {
-            private Token firstToken = null;
-            @Override
-            public void defaultIn(Node node) {
-                if (node instanceof Token && firstToken == null) {
-                    firstToken = (Token) node;
-                }
-            }
-        }
         LineNumberFinder finder = new LineNumberFinder();
         node.apply(finder);
-        return String.format("%s_%s_%s", node.getClass().getSimpleName(), finder.firstToken.getLine(), finder.firstToken.getPos());
+        if (finder.hasLineNumber()) {
+            return String.format("%s_%s_%s", node.getClass().getSimpleName(), finder.getLineNumber(), finder.getColumnNumber());
+        } else {
+            if (!labels.containsKey(node)) {
+                labels.put(node, nextLabel++);
+            }
+            return String.format("%s_%s", node.getClass().getSimpleName(), labels.get(node));
+        }
     }
 
     private void inline(Node subject) {
