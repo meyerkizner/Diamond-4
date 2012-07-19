@@ -340,14 +340,43 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    private void requireValue() {
-        if (expressionResult != null) {
-            switch (expressionResult.getType().getWidth()) {
+    private void requireValue(TypeToken type) {
+        requireValue(type, type);
+    }
+
+    private void requireValue(TypeToken type, TypeToken promotedType) {
+        if (expressionResult != null || !type.equals(promotedType)) {
+            assert (expressionResult == null || expressionResult.getType().equals(type));
+            checkArgument(!(expressionResult instanceof TransientPlaceholder));
+            int lastWord = type.getWidth() - 1;
+            boolean signed = (type instanceof IntegralTypeToken && ((IntegralTypeToken) type).isSigned());
+            switch (promotedType.getWidth()) {
                 case 4:
-                    write("SET X " + lookupExpression(3));
-                    write("SET C " + lookupExpression(2));
+                    if (type.getWidth() < 4) {
+                        if (signed) {
+                            write("SET X " + lookupExpression(lastWord));
+                            write("ASR X 16");
+                            write("SET C " + lookupExpression(lastWord));
+                            write("ASR C 16");
+                        } else {
+                            write("SET X 0x0000");
+                            write("SET C 0x0000");
+                        }
+                    } else {
+                        write("SET X " + lookupExpression(3));
+                        write("SET C " + lookupExpression(2));
+                    }
                 case 2:
-                    write("SET B " + lookupExpression(1));
+                    if (type.getWidth() < 2) {
+                        if (signed) {
+                            write("SET B " + lookupExpression(lastWord));
+                            write("ASR B 16");
+                        } else {
+                            write("SET B 0x0000");
+                        }
+                    } else {
+                        write("SET B " + lookupExpression(1));
+                    }
                 case 1:
                     write("SET A " + lookupExpression(0));
                     break;
@@ -359,26 +388,55 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void requireStack(TypeToken type) {
-        if (expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder) {
+        requireStack(type, type);
+    }
+
+    private void requireStack(TypeToken type, TypeToken promotedType) {
+        if ((expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder)
+                && type.equals(promotedType)) {
             assert stack.contains(expressionResult);
         } else {
-            TransientPlaceholder placeholder = new TransientPlaceholder(type);
-            switch (type.getWidth()) {
+            checkArgument(!(expressionResult instanceof TransientPlaceholder));
+            int lastWord = type.getWidth() - 1;
+            boolean signed = (type instanceof IntegralTypeToken && ((IntegralTypeToken) type).isSigned());
+            switch (promotedType.getWidth()) {
                 case 4:
-                    write("SET PUSH " + lookupExpression(3));
-                    write("SET PUSH " + lookupExpression(2));
+                    if (type.getWidth() < 4) {
+                        if (signed) {
+                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("ASR [SP] 16");
+                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("ASR [SP] 16");
+                        } else {
+                            write("SET PUSH 0x0000");
+                            write("SET PUSH 0x0000");
+                        }
+                    } else {
+                        write("SET PUSH " + lookupExpression(3));
+                        write("SET PUSH " + lookupExpression(2));
+                    }
                 case 2:
-                    write("SET PUSH " + lookupExpression(1));
+                    if (type.getWidth() < 2) {
+                        if (signed) {
+                            write("SET PUSH " + lookupExpression(lastWord));
+                            write("ASR [SP] 16");
+                        } else {
+                            write("SET PUSH 0x0000");
+                            write("SET PUSH 0x0000");
+                        }
+                    } else {
+                        write("SET PUSH " + lookupExpression(1));
+                    }
                 case 1:
                     write("SET PUSH " + lookupExpression(0));
                     break;
                 default:
                     assert false;
             }
-            expressionResult = placeholder;
+            expressionResult = new TransientPlaceholder(promotedType);
         }
     }
-    
+
     void write(String instruction) {
         instructions.put(context, instruction);
     }
@@ -614,7 +672,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getReturnValue());
         // if the expression didn't return a value, coerce whatever it did return into one
         // this is done in case the result is a local/field that will fall out of scope
-        requireValue();
+        requireValue(types.get(statement.getReturnValue()));
         boolean flag;
         do {
             if (flowStructures.isEmpty()) {
@@ -748,7 +806,9 @@ final class CodeGenerator extends ScopeAwareWalker {
             // TRY to put the last expression as the return value if we get to this point
             // we need to do this here because it could be a local that's about to fall out of scope
             // this behavior is UNDEFINED because it's not type-checked
-            requireValue();
+            if (symbol.getReturnType() != null) {
+                requireValue(symbol.getReturnType());
+            }
 
             // reclaim all locals that are NOT parameters
             for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
@@ -1156,7 +1216,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseANumericNegationExpression(ANumericNegationExpression expression) {
         inline(new ABitwiseComplementExpression(expression.getValue()));
-        requireValue(); // though it'll happen anyway, it makes things clearer
+        requireValue(types.get(expression.getValue()), types.get(expression)); // could be promoted to signed
         write("ADD A 0x0001");
         if (types.get(expression).getWidth() >= 2) {
             write("ADD B EX");
@@ -1170,14 +1230,14 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalNotExpression(AConditionalNotExpression expression) {
         inline(expression.getValue());
-        requireValue();
+        requireValue(types.get(expression));
         write("XOR A 0x0001");
     }
 
     @Override
     public void caseABitwiseComplementExpression(ABitwiseComplementExpression expression) {
         inline(expression.getValue());
-        requireValue();
+        requireValue(types.get(expression));
         switch (types.get(expression).getWidth()) {
             case 4:
                 write("XOR X 0xffff");
@@ -1199,11 +1259,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAMultiplyExpression(AMultiplyExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression.getLeft()), types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()), types.get(expression));
 
         String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MLI" : "MUL";
         write(String.format("%s A %s", instruction, lookup(left, 0)));
@@ -1223,11 +1283,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseADivideExpression(ADivideExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression.getLeft()), types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()), types.get(expression));
 
         String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "DVI" : "DIV";
         write(String.format("%s A %s", instruction, lookup(left, 0)));
@@ -1247,11 +1307,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAModulusExpression(AModulusExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression.getLeft()), types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()), types.get(expression));
 
         String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MDI" : "MOD";
         write(String.format("%s A %s", instruction, lookup(left, 0)));
@@ -1271,11 +1331,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAAddExpression(AAddExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression.getLeft()), types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()), types.get(expression));
 
         write("ADD A " + lookup(left, 0));
         if (types.get(expression).getWidth() >= 2) {
@@ -1291,11 +1351,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseASubtractExpression(ASubtractExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression.getLeft()), types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()), types.get(expression));
 
         write("SUB A " + lookup(left, 0));
         if (types.get(expression).getWidth() >= 2) {
@@ -1311,16 +1371,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAShiftLeftExpression(AShiftLeftExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()));
         // this is awkward, but put the right operand in register Y
         // we can discard any other words because they don't matter anyway
         write("SET Y A");
 
-        // now put the stack stuff back in the registers (yes...)
+        // now put the stack stuff back in the registers
         write("SET A " + lookup(left, 0));
         if (types.get(expression.getLeft()).getWidth() >= 2) {
             write("SET B " + lookup(left, 1));
@@ -1352,16 +1412,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAShiftRightExpression(AShiftRightExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()));
         // this is awkward, but put the right operand in register Y
         // we can discard any other words because they don't matter anyway
         write("SET Y A");
 
-        // now put the stack stuff back in the registers (yes...)
+        // now put the stack stuff back in the registers
         write("SET A " + lookup(left, 0));
         if (types.get(expression.getLeft()).getWidth() >= 2) {
             write("SET B " + lookup(left, 1));
@@ -1388,16 +1448,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAUnsignedShiftRightExpression(AUnsignedShiftRightExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()));
+        requireStack(types.get(expression));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue();
+        requireValue(types.get(expression.getRight()));
         // this is awkward, but put the right operand in register Y
         // we can discard any other words because they don't matter anyway
         write("SET Y A");
 
-        // now put the stack stuff back in the registers (yes...)
+        // now put the stack stuff back in the registers
         write("SET A " + lookup(left, 0));
         if (types.get(expression.getLeft()).getWidth() >= 2) {
             write("SET B " + lookup(left, 1));
