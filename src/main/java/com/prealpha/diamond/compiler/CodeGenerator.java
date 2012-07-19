@@ -1058,7 +1058,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
-            if (!symbol.getModifiers().contains(Modifier.STATIC)) {
+            if (!symbol.getModifiers().contains(Modifier.STATIC) && symbol.getDeclaringClass() != null) {
                 inline(new AThisPrimaryExpression());
             }
             evaluateParametrizedInvocation(symbol, invocation.getParameters());
