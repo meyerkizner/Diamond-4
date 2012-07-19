@@ -142,7 +142,7 @@ final class CodeGenerator extends ScopeAwareWalker {
      * <ul>
      *     <li>{@link #thisSymbol}, a pointer to {@code this} for instance methods.</li>
      *     <li>A one-word JSR pointer, to account for the stack offset caused by the JSR instruction used to enter
-     *     functions.</li>
+     *     functions. (This and the preceding case are collectively called {@link FunctionPlaceholder}.)</li>
      *     <li>{@link TransientPlaceholder} values, which are used in binary expressions to store the left operand while
      *     the right operand is being evaluated. These POP from the stack as soon as they are accessed.</li>
      * </ul>
@@ -168,12 +168,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     private PTopLevelStatement context;
 
     /**
-     * The result of the last expression to be executed. There are four possible cases:
+     * The result of the last expression to be executed. There are five possible cases:
      * <ul>
      *     <li>If the expression returned a local variable, {@code expressionResult} is that local variable, which must
      *     already be on the stack.</li>
      *     <li>If the expression returned a field, {@code expressionResult} is that field, which is not placed on the
      *     stack. Instead, the expression must copy the pointer to the field's object into register A.</li>
+     *     <li>If the expression (fragment) was an {@link PArrayAccess}, {@code expressionResult} is an
+     *     {@link ArrayElementPlaceholder}, and register A contains a pointer to the first word of the element accessed.
+     *     The placeholders are never placed on the stack and should always be immediately consumed by the enclosing
+     *     primary expression or assignment expression.</li>
      *     <li>If the expression returned a value, {@code expressionResult} is {@code null}, and registers A, B, C, and
      *     X contain the value; if the value's width is less than four words, registers are employed in that order.</li>
      *     <li>If the expression was a void method invocation, {@code expressionResult} is {@code null}; the only
@@ -302,6 +306,12 @@ final class CodeGenerator extends ScopeAwareWalker {
         } else if (symbol instanceof TransientPlaceholder) {
             checkArgument(((TransientPlaceholder) symbol).lookup(wordOffset));
             return "POP";
+        } else if (symbol instanceof ArrayElementPlaceholder) {
+            if (wordOffset == 0) {
+                return "[A]";
+            } else {
+                return String.format("[A+%d]", wordOffset);
+            }
         } else if (symbol instanceof FieldSymbol) {
             if (!symbol.getModifiers().contains(Modifier.STATIC)) {
                 // the object we need for this field is located in register A
@@ -471,6 +481,12 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private static final class FunctionPlaceholder extends Placeholder {
         public FunctionPlaceholder(TypeToken type) {
+            super(type);
+        }
+    }
+
+    private static final class ArrayElementPlaceholder extends Placeholder {
+        public ArrayElementPlaceholder(TypeToken type) {
             super(type);
         }
     }
@@ -1212,6 +1228,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("MUL A " + elementType.getWidth());
         }
         write("ADD A " + lookup(array, 0));
+        expressionResult = new ArrayElementPlaceholder(elementType);
     }
 
     @Override
