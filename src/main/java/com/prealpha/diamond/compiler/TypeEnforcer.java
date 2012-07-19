@@ -13,6 +13,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
+import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseAndAssignment;
@@ -35,13 +37,13 @@ import com.prealpha.diamond.compiler.node.ADivideAssignment;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
-import com.prealpha.diamond.compiler.node.AExpressionAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AGreaterOrEqualExpression;
 import com.prealpha.diamond.compiler.node.AGreaterThanExpression;
+import com.prealpha.diamond.compiler.node.AIdentifierAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
@@ -60,6 +62,7 @@ import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
+import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
@@ -815,13 +818,29 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAExpressionAssignmentTarget(AExpressionAssignmentTarget assignmentTarget) {
-        types.put(assignmentTarget, types.get(assignmentTarget.getPrimaryExpression()));
-    }
-
-    @Override
     public void outALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
         ALocalDeclaration localDeclaration = (ALocalDeclaration) assignmentTarget.getLocalDeclaration();
         types.put(assignmentTarget, TypeTokenUtil.fromNode(localDeclaration.getType()));
+    }
+
+    @Override
+    public void outAIdentifierAssignmentTarget(AIdentifierAssignmentTarget assignmentTarget) {
+        Node identifierExpression = new AIdentifierPrimaryExpression(assignmentTarget.getIdentifier());
+        identifierExpression.apply(this);
+        types.put(assignmentTarget, types.get(identifierExpression));
+    }
+
+    @Override
+    public void outAQualifiedNameAssignmentTarget(AQualifiedNameAssignmentTarget assignmentTarget) {
+        Node qualifiedNameExpression = new AQualifiedNamePrimaryExpression(assignmentTarget.getQualifiedName());
+        qualifiedNameExpression.apply(this);
+        types.put(assignmentTarget, types.get(qualifiedNameExpression));
+    }
+
+    @Override
+    public void outAArrayAccessAssignmentTarget(AArrayAccessAssignmentTarget assignmentTarget) {
+        Node arrayAccessExpression = new AArrayAccessPrimaryExpression(assignmentTarget.getArrayAccess());
+        arrayAccessExpression.apply(this);
+        types.put(assignmentTarget, types.get(arrayAccessExpression));
     }
 }
