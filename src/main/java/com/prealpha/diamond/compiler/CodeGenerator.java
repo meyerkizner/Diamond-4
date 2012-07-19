@@ -893,10 +893,8 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseALocalDeclaration(ALocalDeclaration declaration) {
         try {
-            LocalSymbol symbol = getScope().resolveLocal(declaration.getName().getText());
-            write(String.format("SUB SP 0x%04x", symbol.getType().getWidth()));
-            stack.push(symbol);
-            expressionResult = symbol; // for the use of caseALocalDeclarationAssignmentTarget
+            expressionResult = getScope().resolveLocal(declaration.getName().getText());
+            stack.push(expressionResult);
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -2104,6 +2102,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
         inline(assignmentTarget.getLocalDeclaration());
+        write(String.format("SUB SP 0x%04x", expressionResult.getType().getWidth()));
     }
 
     @Override
