@@ -58,4 +58,19 @@ final class LocalSymbol implements TypedSymbol {
     public Set<Modifier> getModifiers() {
         return ImmutableSet.copyOf(modifiers);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        LocalSymbol that = (LocalSymbol) o;
+
+        return declaration.equals(that.declaration);
+    }
+
+    @Override
+    public int hashCode() {
+        return declaration.hashCode();
+    }
 }

@@ -266,7 +266,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private void reclaimLocal(TypedSymbol local) {
         TypedSymbol popped = stack.pop();
-        assert (popped == local);
+        assert (local.equals(popped));
         doReclaimLocal(local);
     }
 
@@ -316,7 +316,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             assert stack.contains(symbol);
             int symbolOffset = 0;
             for (TypedSymbol stackSymbol : stack) {
-                if (stackSymbol == symbol) {
+                if (symbol.equals(stackSymbol)) {
                     break;
                 } else {
                     symbolOffset += stackSymbol.getType().getWidth();
@@ -877,7 +877,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
             for (LocalSymbol parameter : Lists.reverse(symbol.getParameters())) {
                 TypedSymbol poppedParameter = stack.pop();
-                assert (poppedParameter == parameter);
+                assert (parameter.equals(poppedParameter));
             }
 
             if (thisSymbol != null) {
