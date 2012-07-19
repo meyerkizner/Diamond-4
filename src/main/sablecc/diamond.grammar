@@ -68,7 +68,6 @@ Tokens
 	colon = ':';
 	emark = '!';
 	eq = '==';
-	peq = '===';
 	gt = '>';
 	gteq = '>=';
 	lt = '<';
@@ -77,7 +76,6 @@ Tokens
 	minus_assign = '-=';
 	minus_minus = '--';
 	neq = '!=';
-	npeq = '!==';
 	percent = '%';
 	percent_assign = '%=';
 	plus = '+';
@@ -306,9 +304,7 @@ Productions
 	
 	equality_expression {-> expression} =   {relational} relational_expression {-> relational_expression.expression} |
 											{equal} equality_expression eq relational_expression {-> New expression.equal(equality_expression.expression, relational_expression.expression)} |
-											{not_equal} equality_expression neq relational_expression {-> New expression.not_equal(equality_expression.expression, relational_expression.expression)} |
-											{pointer_equal} equality_expression peq relational_expression {-> New expression.pointer_equal(equality_expression.expression, relational_expression.expression)} |
-											{not_pointer_equal} equality_expression npeq relational_expression {-> New expression.not_pointer_equal(equality_expression.expression, relational_expression.expression)};
+											{not_equal} equality_expression neq relational_expression {-> New expression.not_equal(equality_expression.expression, relational_expression.expression)};
 	
 	bitwise_and_expression {-> expression} =    {equality} equality_expression {-> equality_expression.expression} |
 												{bitwise_and} bitwise_and_expression amp equality_expression {-> New expression.bitwise_and(bitwise_and_expression.expression, equality_expression.expression)};
@@ -439,8 +435,6 @@ Abstract Syntax Tree
 					{greater_or_equal} [left]:expression [right]:expression |
 					{equal} [left]:expression [right]:expression |
 					{not_equal} [left]:expression [right]:expression |
-					{pointer_equal} [left]:expression [right]:expression |
-					{not_pointer_equal} [left]:expression [right]:expression |
 					{bitwise_and} [left]:expression [right]:expression |
 					{bitwise_xor} [left]:expression [right]:expression |
 					{bitwise_or} [left]:expression [right]:expression |

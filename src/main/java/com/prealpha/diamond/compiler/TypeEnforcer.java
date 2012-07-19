@@ -55,11 +55,8 @@ import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyAssignment;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
-import com.prealpha.diamond.compiler.node.ANotPointerEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
-import com.prealpha.diamond.compiler.node.APointerEqualExpression;
-
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
@@ -681,16 +678,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outANotEqualExpression(ANotEqualExpression expression) {
         assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
-    }
-
-    @Override
-    public void outAPointerEqualExpression(APointerEqualExpression expression) {
-        types.put(expression, BooleanTypeToken.INSTANCE);
-    }
-
-    @Override
-    public void outANotPointerEqualExpression(ANotPointerEqualExpression expression) {
         types.put(expression, BooleanTypeToken.INSTANCE);
     }
 
