@@ -15,16 +15,19 @@ final class SwitchFlowStructure implements FlowStructure {
 
     private final ASwitchStatement switchStatement;
 
+    private final Scope enclosingScope;
+
     public SwitchFlowStructure(CodeGenerator codeGenerator, ASwitchStatement switchStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(switchStatement);
         this.codeGenerator = codeGenerator;
         this.switchStatement = switchStatement;
+        this.enclosingScope = this.codeGenerator.getScope();
     }
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(switchStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(switchStatement.getBody().descendingIterator().next()));

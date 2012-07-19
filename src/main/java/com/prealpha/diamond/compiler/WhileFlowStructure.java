@@ -15,16 +15,19 @@ final class WhileFlowStructure implements FlowStructure {
 
     private final AWhileStatement whileStatement;
 
+    private final Scope enclosingScope;
+
     public WhileFlowStructure(CodeGenerator codeGenerator, AWhileStatement whileStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(whileStatement);
         this.codeGenerator = codeGenerator;
         this.whileStatement = whileStatement;
+        this.enclosingScope = this.codeGenerator.getScope();
     }
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(whileStatement.getBody()));
@@ -33,7 +36,7 @@ final class WhileFlowStructure implements FlowStructure {
 
     @Override
     public boolean onContinue() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(whileStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(whileStatement.getCondition()));

@@ -15,16 +15,19 @@ final class DoFlowStructure implements FlowStructure {
 
     private final ADoStatement doStatement;
 
+    private final Scope enclosingScope;
+
     public DoFlowStructure(CodeGenerator codeGenerator, ADoStatement doStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(doStatement);
         this.codeGenerator = codeGenerator;
         this.doStatement = doStatement;
+        this.enclosingScope = this.codeGenerator.getScope();
     }
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(doStatement.getCondition()));
@@ -33,7 +36,7 @@ final class DoFlowStructure implements FlowStructure {
 
     @Override
     public boolean onContinue() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(doStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(doStatement.getCondition()));

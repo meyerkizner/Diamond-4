@@ -821,7 +821,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 symbol = getScope().resolveFunction(name, parameterTypes);
             }
 
-            flowStructures.push(new ParametrizedFlowStructure(this, declaration));
+            flowStructures.push(new ParametrizedFlowStructure(this));
 
             super.onEnterScope(declaration);
 

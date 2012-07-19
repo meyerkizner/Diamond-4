@@ -40,20 +40,16 @@ import java.util.Map;
 abstract class ScopeAwareWalker extends DepthFirstAdapter {
     private final Map<Node, Scope> scopes;
 
-    private final Map<Node, Scope> enclosingScopes;
-
     private Scope current;
 
     protected ScopeAwareWalker() {
         scopes = Maps.newHashMap();
-        enclosingScopes = Maps.newHashMap();
         current = new Scope(null);
         scopes.put(null, current);
     }
 
     protected ScopeAwareWalker(ScopeAwareWalker scopeSource) {
         scopes = ImmutableMap.copyOf(scopeSource.scopes);
-        enclosingScopes = ImmutableMap.copyOf(scopeSource.enclosingScopes);
         current = scopes.get(null);
     }
 
@@ -63,10 +59,6 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
 
     protected final Scope getScope(Node scopeKey) {
         return scopes.get(scopeKey);
-    }
-
-    protected final Scope getEnclosingScope(Node node) {
-        return enclosingScopes.get(node);
     }
 
     protected void onEnterScope(Node scopeKey) {
@@ -80,11 +72,6 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
 
     protected void onExitScope(Node scopeKey) {
         current = current.getParent();
-    }
-
-    @Override
-    public void defaultIn(Node node) {
-        enclosingScopes.put(node, current);
     }
 
     @Override

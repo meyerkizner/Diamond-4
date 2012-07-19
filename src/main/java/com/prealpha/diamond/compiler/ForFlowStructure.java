@@ -15,16 +15,19 @@ final class ForFlowStructure implements FlowStructure {
 
     private final AForStatement forStatement;
 
+    private final Scope enclosingScope;
+
     public ForFlowStructure(CodeGenerator codeGenerator, AForStatement forStatement) {
         checkNotNull(codeGenerator);
         checkNotNull(forStatement);
         this.codeGenerator = codeGenerator;
         this.forStatement = forStatement;
+        this.enclosingScope = this.codeGenerator.getScope();
     }
 
     @Override
     public boolean onBreak() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(forStatement.getBody()));
@@ -33,7 +36,7 @@ final class ForFlowStructure implements FlowStructure {
 
     @Override
     public boolean onContinue() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(forStatement)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(forStatement.getUpdate()));

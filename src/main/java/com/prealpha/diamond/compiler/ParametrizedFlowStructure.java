@@ -13,13 +13,12 @@ import static com.google.common.base.Preconditions.*;
 final class ParametrizedFlowStructure implements FlowStructure {
     private final CodeGenerator codeGenerator;
 
-    private final Node parametrizedDeclaration;
+    private final Scope enclosingScope;
 
-    public ParametrizedFlowStructure(CodeGenerator codeGenerator, Node parametrizedDeclaration) {
+    public ParametrizedFlowStructure(CodeGenerator codeGenerator) {
         checkNotNull(codeGenerator);
-        checkNotNull(parametrizedDeclaration);
         this.codeGenerator = codeGenerator;
-        this.parametrizedDeclaration = parametrizedDeclaration;
+        this.enclosingScope = this.codeGenerator.getScope();
     }
 
     @Override
@@ -34,7 +33,7 @@ final class ParametrizedFlowStructure implements FlowStructure {
 
     @Override
     public boolean onReturn() {
-        while (codeGenerator.getScope() != codeGenerator.getEnclosingScope(parametrizedDeclaration)) {
+        while (codeGenerator.getScope() != enclosingScope) {
             codeGenerator.reclaimScope();
         }
         codeGenerator.reclaimScope();
