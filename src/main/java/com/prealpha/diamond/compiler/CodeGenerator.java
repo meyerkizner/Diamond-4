@@ -1261,16 +1261,18 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseANumericNegationExpression(ANumericNegationExpression expression) {
-        Node toInline = new ABitwiseComplementExpression(expression.getValue());
-        types.put(toInline, types.get(expression.getValue()));
-        inline(toInline);
+        inline(expression.getValue());
         requireValue(types.get(expression.getValue()), types.get(expression)); // could be promoted to signed
+        write("XOR A 0xffff");
         write("ADD A 0x0001");
         if (types.get(expression).getWidth() >= 2) {
+            write("XOR B 0xffff");
             write("ADD B EX");
         }
         if (types.get(expression).getWidth() >= 4) {
+            write("XOR C 0xffff");
             write("ADD C EX");
+            write("XOR D 0xffff");
             write("ADD X EX");
         }
         expressionResult = null;
