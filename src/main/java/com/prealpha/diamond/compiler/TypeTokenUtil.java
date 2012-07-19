@@ -40,6 +40,8 @@ final class TypeTokenUtil {
             return new UserDefinedTypeToken(((AUserDefinedTypeToken) node).getIdentifier().getText());
         } else if (node instanceof AArrayTypeToken) {
             return new ArrayTypeToken(fromNode(((AArrayTypeToken) node).getElementType()));
+        } else if (node == null) {
+            return null;
         } else {
             throw new UnsupportedOperationException("unknown flavor of type token");
         }
