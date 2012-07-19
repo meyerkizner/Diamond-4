@@ -7,7 +7,7 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Functions;
-import com.google.common.collect.ForwardingMap;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -113,30 +113,12 @@ final class TypeEnforcer extends ScopeAwareWalker {
         super(scopeSource);
         checkNotNull(exceptionBuffer);
         this.exceptionBuffer = exceptionBuffer;
-        this.types = new ForwardingMap<Node, TypeToken>() {
-            private final Map<Node, TypeToken> delegate = Maps.newHashMap();
-
+        this.types = Maps.filterEntries(Maps.<Node, TypeToken> newHashMap(), new Predicate<Map.Entry<Node, TypeToken>>() {
             @Override
-            protected Map<Node, TypeToken> delegate() {
-                return delegate;
+            public boolean apply(Map.Entry<Node, TypeToken> input) {
+                return (input.getKey() != null && input.getValue() != null);
             }
-
-            @Override
-            public TypeToken put(Node key, TypeToken value) {
-                checkArgument(key != null);
-                checkArgument(value != null);
-                return super.put(key, value);
-            }
-
-            @Override
-            public void putAll(Map<? extends Node, ? extends TypeToken> map) {
-                for (Map.Entry<? extends Node, ? extends TypeToken> entry : map.entrySet()) {
-                    checkArgument(entry.getKey() != null);
-                    checkArgument(entry.getValue() != null);
-                }
-                super.putAll(map);
-            }
-        };
+        });
     }
 
     public Map<Node, TypeToken> getTypes() {

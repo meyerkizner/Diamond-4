@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Queues;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
@@ -214,7 +215,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         this.exceptionBuffer = exceptionBuffer;
         this.types = ImmutableMap.copyOf(types);
         instructions = ArrayListMultimap.create();
-        stack = Lists.newLinkedList();
+        stack = Queues.newArrayDeque();
         flowStructures = Lists.newLinkedList();
     }
 
