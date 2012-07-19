@@ -39,6 +39,16 @@
                 </executions>
             </plugin>
         </plugins>
+
+        <resources>
+            <resource>
+                <!-- include lexer.dat and parser.dat -->
+                <directory>${basedir}/target/generated-sources/sablecc</directory>
+                <includes>
+                    <include>**/*.dat</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 
 </project>
