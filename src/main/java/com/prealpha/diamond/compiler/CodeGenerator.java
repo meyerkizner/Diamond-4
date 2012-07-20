@@ -912,7 +912,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
-        inline(primaryExpression.getIdentifier());
+        enforceIdentifier(primaryExpression.getIdentifier());
     }
 
     @Override
@@ -2098,7 +2098,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAIdentifierAssignmentTarget(AIdentifierAssignmentTarget assignmentTarget) {
-        inline(assignmentTarget.getIdentifier());
+        enforceIdentifier(assignmentTarget.getIdentifier());
     }
 
     @Override
@@ -2111,8 +2111,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(assignmentTarget.getArrayAccess());
     }
 
-    @Override
-    public void caseTIdentifier(TIdentifier identifier) {
+    private void enforceIdentifier(TIdentifier identifier) {
         try {
             try {
                 expressionResult = getScope().resolveLocal(identifier.getText());

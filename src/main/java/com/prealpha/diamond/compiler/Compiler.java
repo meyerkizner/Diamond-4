@@ -58,7 +58,7 @@ public final class Compiler {
             for (Exception exception : exceptionBuffer) {
                 exception.printStackTrace();
             }
-            throw new AssertionError(String.format("compilation halted: %d syntax errors", exceptionBuffer.size()));
+            throw new AssertionError(String.format("compilation halted: %d syntax error(s)", exceptionBuffer.size()));
         }
     }
 

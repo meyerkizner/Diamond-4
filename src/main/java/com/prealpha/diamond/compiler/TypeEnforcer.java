@@ -356,7 +356,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
-        primaryExpression.getIdentifier().apply(this);
+        enforceIdentifier(primaryExpression.getIdentifier());
         types.put(primaryExpression, types.get(primaryExpression.getIdentifier()));
     }
 
@@ -815,7 +815,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAIdentifierAssignmentTarget(AIdentifierAssignmentTarget assignmentTarget) {
-        assignmentTarget.getIdentifier().apply(this);
+        enforceIdentifier(assignmentTarget.getIdentifier());
         types.put(assignmentTarget, types.get(assignmentTarget.getIdentifier()));
     }
 
@@ -829,8 +829,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         types.put(assignmentTarget, types.get(assignmentTarget.getArrayAccess()));
     }
 
-    @Override
-    public void caseTIdentifier(TIdentifier identifier) {
+    private void enforceIdentifier(TIdentifier identifier) {
         try {
             try {
                 LocalSymbol localSymbol = getScope().resolveLocal(identifier.getText());
