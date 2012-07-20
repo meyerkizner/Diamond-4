@@ -85,6 +85,7 @@ import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
+import com.prealpha.diamond.compiler.node.PArrayAccess;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
@@ -92,6 +93,7 @@ import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PTypeToken;
+import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -835,24 +837,34 @@ final class TypeEnforcer extends ScopeAwareWalker {
         types.put(assignmentTarget, TypeTokenUtil.fromNode(localDeclaration.getType()));
     }
 
+    /*
+     * TODO: there must be a better way to do this than these synthetic nodes
+     */
+
     @Override
     public void outAIdentifierAssignmentTarget(AIdentifierAssignmentTarget assignmentTarget) {
+        TIdentifier identifier = assignmentTarget.getIdentifier();
         Node identifierExpression = new AIdentifierPrimaryExpression(assignmentTarget.getIdentifier());
         identifierExpression.apply(this);
         types.put(assignmentTarget, types.get(identifierExpression));
+        assignmentTarget.setIdentifier(identifier);
     }
 
     @Override
     public void outAQualifiedNameAssignmentTarget(AQualifiedNameAssignmentTarget assignmentTarget) {
+        PQualifiedName qualifiedName = assignmentTarget.getQualifiedName();
         Node qualifiedNameExpression = new AQualifiedNamePrimaryExpression(assignmentTarget.getQualifiedName());
         qualifiedNameExpression.apply(this);
         types.put(assignmentTarget, types.get(qualifiedNameExpression));
+        assignmentTarget.setQualifiedName(qualifiedName);
     }
 
     @Override
     public void outAArrayAccessAssignmentTarget(AArrayAccessAssignmentTarget assignmentTarget) {
-        Node arrayAccessExpression = new AArrayAccessPrimaryExpression(assignmentTarget.getArrayAccess());
+        PArrayAccess arrayAccess = assignmentTarget.getArrayAccess();
+        Node arrayAccessExpression = new AArrayAccessPrimaryExpression(arrayAccess);
         arrayAccessExpression.apply(this);
         types.put(assignmentTarget, types.get(arrayAccessExpression));
+        assignmentTarget.setArrayAccess(arrayAccess);
     }
 }
