@@ -112,7 +112,7 @@ import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
-import com.prealpha.diamond.compiler.node.PTypeToken;
+import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.util.Deque;
 import java.util.Iterator;
@@ -910,64 +910,14 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(primaryExpression.getLiteral());
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAIdentifierPrimaryExpression(AIdentifierPrimaryExpression)
-     */
     @Override
     public void caseAIdentifierPrimaryExpression(AIdentifierPrimaryExpression primaryExpression) {
-        try {
-            try {
-                expressionResult = getScope().resolveLocal(primaryExpression.getIdentifier().getText());
-                assert stack.contains(expressionResult);
-            } catch (SemanticException sx) {
-                expressionResult = getScope().resolveField(primaryExpression.getIdentifier().getText());
-                assert stack.contains(thisSymbol);
-                write("SET A " + lookup(thisSymbol, 0));
-            }
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        inline(primaryExpression.getIdentifier());
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression)
-     */
     @Override
     public void caseAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
-        try {
-            PQualifiedName qualifiedName = primaryExpression.getQualifiedName();
-            TypeToken type;
-            String fieldName;
-            if (qualifiedName instanceof AExpressionQualifiedName) {
-                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                PPrimaryExpression expression = expressionName.getTarget();
-                type = types.get(expression);
-                fieldName = expressionName.getName().getText();
-                inline(expression); // so that the expressionResult is the object
-            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
-                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                PTypeToken rawTarget = typeName.getTarget();
-                if (rawTarget != null) {
-                    type = TypeTokenUtil.fromNode(rawTarget);
-                    fieldName = typeName.getName().getText();
-                } else {
-                    throw new SemanticException(primaryExpression, "there are no fields in the global scope");
-                }
-            } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (type instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol symbol = classScope.resolveField(fieldName);
-                write("SET A " + lookup(expressionResult, 0));
-                expressionResult = symbol;
-            } else {
-                throw new SemanticException("built-in types do not currently support any fields");
-            }
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        inline(primaryExpression.getQualifiedName());
     }
 
     @Override
@@ -1245,6 +1195,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
                 write("SET A " + lookup(expressionResult, 0));
                 expressionResult = fieldSymbol;
+                evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
             } else {
                 throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
             }
@@ -1273,6 +1224,37 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
         write("ADD A " + lookup(array, 0));
         expressionResult = new ArrayElementPlaceholder(elementType);
+    }
+
+    @Override
+    public void caseAExpressionQualifiedName(AExpressionQualifiedName qualifiedName) {
+        inline(qualifiedName.getTarget()); // so that the expressionResult is the object
+        evaluateQualifiedName(qualifiedName, types.get(qualifiedName.getTarget()), qualifiedName.getName().getText());
+    }
+
+    @Override
+    public void caseATypeTokenQualifiedName(ATypeTokenQualifiedName qualifiedName) {
+        if (qualifiedName.getTarget() != null) {
+            evaluateQualifiedName(qualifiedName, TypeTokenUtil.fromNode(qualifiedName.getTarget()), qualifiedName.getName().getText());
+        } else {
+            exceptionBuffer.add(new SemanticException(qualifiedName, "there are no fields in the global scope"));
+        }
+    }
+
+    private void evaluateQualifiedName(PQualifiedName qualifiedName, TypeToken type, String fieldName) {
+        try {
+            if (type instanceof UserDefinedTypeToken) {
+                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
+                Scope classScope = getScope(classSymbol.getDeclaration());
+                FieldSymbol symbol = classScope.resolveField(fieldName);
+                write("SET A " + lookup(expressionResult, 0));
+                expressionResult = symbol;
+            } else {
+                throw new SemanticException(qualifiedName, "built-in types do not currently support any fields");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
     }
 
     @Override
@@ -2127,5 +2109,21 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAArrayAccessAssignmentTarget(AArrayAccessAssignmentTarget assignmentTarget) {
         inline(assignmentTarget.getArrayAccess());
+    }
+
+    @Override
+    public void caseTIdentifier(TIdentifier identifier) {
+        try {
+            try {
+                expressionResult = getScope().resolveLocal(identifier.getText());
+                assert stack.contains(expressionResult);
+            } catch (SemanticException sx) {
+                expressionResult = getScope().resolveField(identifier.getText());
+                assert stack.contains(thisSymbol);
+                write("SET A " + lookup(thisSymbol, 0));
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
     }
 }
