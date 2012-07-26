@@ -94,7 +94,7 @@ enum IntegralTypeToken implements TypeToken {
     public static IntegralTypeToken fromLiteral(PIntegralLiteral literal) throws SemanticException {
         BigInteger value = parseLiteral(literal);
         for (IntegralTypeToken type : values()) {
-            if (value.getLowestSetBit() <= type.width) {
+            if (value.bitLength() <= type.width) {
                 return type;
             }
         }
