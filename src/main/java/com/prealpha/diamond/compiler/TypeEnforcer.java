@@ -77,6 +77,8 @@ import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
+import com.prealpha.diamond.compiler.node.PLiteral;
+import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
@@ -562,7 +564,30 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outANumericNegationExpression(ANumericNegationExpression expression) {
         try {
             assertNumeric(expression.getValue());
-            IntegralTypeToken valueType = (IntegralTypeToken) types.get(expression.getValue());
+
+            // handle the edge cases Long.MIN_VALUE, Integer.MIN_VALUE, Short.MIN_VALUE
+            IntegralTypeToken valueType = null;
+            if (expression.getValue() instanceof APrimaryExpression) {
+                PPrimaryExpression primaryExpression = ((APrimaryExpression) expression.getValue()).getPrimaryExpression();
+                if (primaryExpression instanceof ALiteralPrimaryExpression) {
+                    PLiteral literal = ((ALiteralPrimaryExpression) primaryExpression).getLiteral();
+                    if (literal instanceof AIntegralLiteral) {
+                        PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
+                        BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
+                        if (value.longValue() == Long.MIN_VALUE) {
+                            valueType = IntegralTypeToken.SIGNED_LONG;
+                        } else if (value.intValue() == Integer.MIN_VALUE) {
+                            valueType = IntegralTypeToken.SIGNED_INT;
+                        } else if (value.shortValue() == Short.MIN_VALUE) {
+                            valueType = IntegralTypeToken.SIGNED_SHORT;
+                        }
+                    }
+                }
+            }
+            if (valueType == null) {
+                valueType = (IntegralTypeToken) types.get(expression.getValue());
+            }
+
             types.put(expression, valueType.promoteToSigned());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);

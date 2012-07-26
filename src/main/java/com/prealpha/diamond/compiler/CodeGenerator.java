@@ -95,6 +95,7 @@ import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
+import com.prealpha.diamond.compiler.node.PLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
@@ -102,6 +103,7 @@ import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
+import java.math.BigInteger;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -1262,6 +1264,39 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseANumericNegationExpression(ANumericNegationExpression expression) {
+        // handle the edge cases Long.MIN_VALUE, Integer.MIN_VALUE, Short.MIN_VALUE
+        if (expression.getValue() instanceof APrimaryExpression) {
+            PPrimaryExpression primaryExpression = ((APrimaryExpression) expression.getValue()).getPrimaryExpression();
+            if (primaryExpression instanceof ALiteralPrimaryExpression) {
+                PLiteral literal = ((ALiteralPrimaryExpression) primaryExpression).getLiteral();
+                if (literal instanceof AIntegralLiteral) {
+                    try {
+                        PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
+                        BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
+                        if (value.longValue() == Long.MIN_VALUE) {
+                            write("SET A 0xffff");
+                            write("SET B 0xffff");
+                            write("SET C 0xffff");
+                            write("SET X 0xffff");
+                            expressionResult = null;
+                            return;
+                        } else if (value.intValue() == Integer.MIN_VALUE) {
+                            write("SET A 0xffff");
+                            write("SET B 0xffff");
+                            expressionResult = null;
+                            return;
+                        } else if (value.shortValue() == Short.MIN_VALUE) {
+                            write("SET A 0xffff");
+                            expressionResult = null;
+                            return;
+                        }
+                    } catch (SemanticException sx) {
+                        exceptionBuffer.add(sx);
+                    }
+                }
+            }
+        }
+
         inline(expression.getValue());
         requireValue(types.get(expression.getValue()), types.get(expression)); // could be promoted to signed
         write("XOR A 0xffff");
@@ -1368,7 +1403,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             conditionallyNegate(expressionResult, "Z", "negate_result_" + getBaseLabel(expression));
         }
         if (left instanceof TransientPlaceholder) {
-            reclaimLocal(left);
+            doReclaimLocal(left);
         }
     }
 
