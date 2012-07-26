@@ -1274,19 +1274,19 @@ final class CodeGenerator extends ScopeAwareWalker {
                         PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
                         BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
                         if (value.longValue() == Long.MIN_VALUE) {
-                            write("SET A 0xffff");
-                            write("SET B 0xffff");
-                            write("SET C 0xffff");
-                            write("SET X 0xffff");
+                            write("SET A 0x0000");
+                            write("SET B 0x0000");
+                            write("SET C 0x0000");
+                            write("SET X 0x8000");
                             expressionResult = null;
                             return;
                         } else if (value.intValue() == Integer.MIN_VALUE) {
-                            write("SET A 0xffff");
-                            write("SET B 0xffff");
+                            write("SET A 0x0000");
+                            write("SET B 0x8000");
                             expressionResult = null;
                             return;
                         } else if (value.shortValue() == Short.MIN_VALUE) {
-                            write("SET A 0xffff");
+                            write("SET A 0x8000");
                             expressionResult = null;
                             return;
                         }
@@ -1984,9 +1984,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getAssignment());
     }
 
-    /*
-     * This method only handles the case of simple assignment.
-     */
     @Override
     public void caseAAssignment(AAssignment assignment) {
         inline(assignment.getTarget());
@@ -1996,8 +1993,16 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(assignment.getValue());
         for (int i = 0; i < types.get(assignment.getTarget()).getWidth(); i++) {
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("SET %s 0x0000", lookup(targetSymbol, i)));
+            if (types.get(assignment.getValue()).getWidth() <= i) {
+                if (types.get(assignment.getValue()) instanceof IntegralTypeToken
+                        && ((IntegralTypeToken) types.get(assignment.getValue())).isSigned()) {
+                    // do sign extension if we're promoting the value from a signed type
+                    int lastWord = types.get(assignment.getValue()).getWidth() - 1;
+                    write(String.format("SET %s %s", lookup(targetSymbol, i), lookup(expressionResult, lastWord)));
+                    write(String.format("ASR %s 16", lookup(targetSymbol, i)));
+                } else {
+                    write(String.format("SET %s 0x0000", lookup(targetSymbol, i)));
+                }
             } else {
                 write(String.format("SET %s %s", lookup(targetSymbol, i), lookup(expressionResult, i)));
             }
