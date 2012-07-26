@@ -1412,14 +1412,33 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), types.get(expression));
-
-        write("SUB A " + lookup(left, 0));
+        // subtraction isn't commutative, so put our right value in some spare registers
+        write("SET Y A");
         if (types.get(expression).getWidth() >= 2) {
-            write("SBX B " + lookup(left, 1));
+            write("SET Z B");
         }
         if (types.get(expression).getWidth() >= 4) {
-            write("SBX C " + lookup(left, 2));
-            write("SBX D " + lookup(left, 3));
+            write("SET I C");
+            write("SET J X");
+        }
+
+        // now put the stack stuff back in the registers
+        write("SET A " + lookup(left, 0));
+        if (types.get(expression.getLeft()).getWidth() >= 2) {
+            write("SET B " + lookup(left, 1));
+        }
+        if (types.get(expression.getLeft()).getWidth() >= 4) {
+            write("SET C " + lookup(left, 2));
+            write("SET X " + lookup(left, 3));
+        }
+
+        write("SUB A Y");
+        if (types.get(expression).getWidth() >= 2) {
+            write("SBX B Z");
+        }
+        if (types.get(expression).getWidth() >= 4) {
+            write("SBX C I");
+            write("SBX D J");
         }
         expressionResult = null;
     }
