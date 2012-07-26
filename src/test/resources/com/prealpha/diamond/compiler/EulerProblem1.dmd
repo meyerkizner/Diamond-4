@@ -1,0 +1,8 @@
+void main() {
+	int sum = 0;
+	for (short i = 3; i < 1000; i += 1) {
+		if (i % 3 == 0 || i % 5 == 0) {
+			sum += i;
+		}
+	}
+}

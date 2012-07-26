@@ -591,7 +591,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getCondition());
 
         write("IFE " + lookup(expressionResult, 0) + " 0x0000");
-        write("SET PC " + getEndLabel(statement.getBody()));
+        write("SET PC " + getEndLabel(statement));
 
         inline(statement.getBody());
         write("SET PC " + getStartLabel(statement.getCondition()));
@@ -614,12 +614,13 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getCondition());
 
         write("IFE " + lookup(expressionResult, 0) + " 0x0000");
-        write("SET PC " + getEndLabel(statement.getBody()));
+        write("SET PC reclaim_" + getBaseLabel(statement));
 
         inline(statement.getBody());
         write("SET PC " + getStartLabel(statement.getUpdate()));
 
         flowStructures.pop();
+        write(":reclaim_" + getBaseLabel(statement));
         super.outAForStatement(statement);
     }
 
@@ -631,7 +632,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getCondition());
         write("IFN " + lookup(expressionResult, 0) + " 0x0000");
-        write("SET PC " + getStartLabel(statement.getBody()));
+        write("SET PC " + getStartLabel(statement));
 
         flowStructures.pop();
     }
