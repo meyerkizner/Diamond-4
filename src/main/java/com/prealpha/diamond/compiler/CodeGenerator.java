@@ -370,6 +370,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private String lookupSafe(TypedSymbol symbol, int wordOffset) {
         String lookup = lookup(symbol, wordOffset);
         if (lookup.equals("POP")) {
+            ((TransientPlaceholder) symbol).stackOffset -= 1;
             return "[SP]";
         } else {
             return lookup;
@@ -1345,13 +1346,14 @@ final class CodeGenerator extends ScopeAwareWalker {
      * TODO: arithmetic needs a LOT of unit tests, and I'm sure these methods fail in some (or even most) cases
      */
 
-    private void conditionallyNegate(TypedSymbol symbol, String word, String label) {
-        assert ((IntegralTypeToken) symbol.getType()).isSigned();
-        assert (symbol.getType().getWidth() == 2 || symbol.getType().getWidth() == 4);
+    private void conditionallyNegate(TypeToken type, TypedSymbol symbol, String word, String label) {
+        assert symbol == null || type == symbol.getType();
+        assert symbol == null || ((IntegralTypeToken) symbol.getType()).isSigned();
+        assert symbol == null || (symbol.getType().getWidth() == 2 || symbol.getType().getWidth() == 4);
 
         write(String.format("IFA %s 0xffff", word));
         write(String.format("SET PC " + label));
-        for (int i = 0; i < symbol.getType().getWidth(); i++) {
+        for (int i = 0; i < type.getWidth(); i++) {
             write(String.format("XOR %s 0xffff", lookupSafe(symbol, i)));
             if (i == 0) {
                 write(String.format("ADD %s 0x0001", lookupSafe(symbol, i)));
@@ -1378,8 +1380,8 @@ final class CodeGenerator extends ScopeAwareWalker {
                 int lastWord = types.get(expression).getWidth() - 1;
                 write("SET Z " + lookupSafe(left, lastWord));
                 write("XOR Z " + lookupSafe(expressionResult, lastWord));
-                conditionallyNegate(left, lookupSafe(left, lastWord), "negate_left_" + getBaseLabel(expression));
-                conditionallyNegate(expressionResult, lookupSafe(expressionResult, lastWord), "negate_right_" + getBaseLabel(expression));
+                conditionallyNegate(types.get(expression), left, lookupSafe(left, lastWord), "negate_left_" + getBaseLabel(expression));
+                conditionallyNegate(types.get(expression), expressionResult, lookupSafe(expressionResult, lastWord), "negate_right_" + getBaseLabel(expression));
                 write("MUL A " + lookup(left, 0));
             }
         } else {
@@ -1400,7 +1402,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
         expressionResult = null;
         if (((IntegralTypeToken) types.get(expression)).isSigned() && types.get(expression).getWidth() > 1) {
-            conditionallyNegate(expressionResult, "Z", "negate_result_" + getBaseLabel(expression));
+            conditionallyNegate(types.get(expression), expressionResult, "Z", "negate_result_" + getBaseLabel(expression));
         }
         if (left instanceof TransientPlaceholder) {
             doReclaimLocal(left);
