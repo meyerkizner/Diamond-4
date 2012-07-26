@@ -377,6 +377,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
+    private String lookupSafe(TypedSymbol symbol, int wordOffset) {
+        String lookup = lookup(symbol, wordOffset);
+        if (lookup.equals("POP")) {
+            return "[SP]";
+        } else {
+            return lookup;
+        }
+    }
+
     private void requireValue(TypeToken type) {
         requireValue(type, type);
     }
@@ -1312,6 +1321,23 @@ final class CodeGenerator extends ScopeAwareWalker {
      * TODO: arithmetic needs a LOT of unit tests, and I'm sure these methods fail in some (or even most) cases
      */
 
+    private void conditionallyNegate(TypedSymbol symbol, String word, String label) {
+        assert ((IntegralTypeToken) symbol.getType()).isSigned();
+        assert (symbol.getType().getWidth() == 2 || symbol.getType().getWidth() == 4);
+
+        write(String.format("IFA %s 0xffff", word));
+        write(String.format("SET PC " + label));
+        for (int i = 0; i < symbol.getType().getWidth(); i++) {
+            write(String.format("XOR %s 0xffff", lookupSafe(symbol, i)));
+            if (i == 0) {
+                write(String.format("ADD %s 0x0001", lookupSafe(symbol, i)));
+            } else {
+                write(String.format("ADD %s EX", lookupSafe(symbol, i)));
+            }
+        }
+        write(":" + label);
+    }
+
     @Override
     public void caseAMultiplyExpression(AMultiplyExpression expression) {
         inline(expression.getLeft());
@@ -1321,19 +1347,40 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()), types.get(expression));
 
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MLI" : "MUL";
-        write(String.format("%s A %s", instruction, lookup(left, 0)));
+        if (((IntegralTypeToken) types.get(expression)).isSigned()) {
+            if (types.get(expression).getWidth() == 1) {
+                write("MLI A " + lookup(left, 0));
+            } else {
+                int lastWord = types.get(expression).getWidth() - 1;
+                write("SET Z " + lookupSafe(left, lastWord));
+                write("XOR Z " + lookupSafe(expressionResult, lastWord));
+                conditionallyNegate(left, lookupSafe(left, lastWord), "negate_left_" + getBaseLabel(expression));
+                conditionallyNegate(expressionResult, lookupSafe(expressionResult, lastWord), "negate_right_" + getBaseLabel(expression));
+                write("MUL A " + lookup(left, 0));
+            }
+        } else {
+            write("MUL A " + lookup(left, 0));
+        }
         if (types.get(expression).getWidth() >= 2) {
-            write("ADD B EX");
-            write(String.format("%s B %s", instruction, lookup(left, 1)));
+            write("SET Y EX");
+            write("MUL B " + lookup(left, 1));
+            write("ADD B Y");
         }
         if (types.get(expression).getWidth() >= 4) {
-            write("ADD C EX");
-            write(String.format("%s C %s", instruction, lookup(left, 2)));
-            write("ADD X EX");
-            write(String.format("%s X %s", instruction, lookup(left, 3)));
+            write("SET Y EX");
+            write("MUL C " + lookup(left, 2));
+            write("ADD C Y");
+            write("SET Y EX");
+            write("MUL X " + lookup(left, 3));
+            write("ADD X Y");
         }
         expressionResult = null;
+        if (((IntegralTypeToken) types.get(expression)).isSigned() && types.get(expression).getWidth() > 1) {
+            conditionallyNegate(expressionResult, "Z", "negate_result_" + getBaseLabel(expression));
+        }
+        if (left instanceof TransientPlaceholder) {
+            reclaimLocal(left);
+        }
     }
 
     @Override
