@@ -34,8 +34,8 @@ public final class Compiler {
         Parser parser = new Parser(lexer);
         Start tree = parser.parse();
 
-        IncludeProcessor includeProcessor = new IncludeProcessor(exceptionBuffer, file);
-        tree.apply(includeProcessor);
+        NodeReplacementProcessor nodeReplacementProcessor = new NodeReplacementProcessor(exceptionBuffer, file);
+        tree.apply(nodeReplacementProcessor);
         checkBuffer(exceptionBuffer);
 
         SymbolTableBuilder symbolTableBuilder = new SymbolTableBuilder((AProgram) tree.getPProgram(), exceptionBuffer);

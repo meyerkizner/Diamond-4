@@ -14,18 +14,14 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
-import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseAndAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseAndExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseOrAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseXorAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
@@ -43,7 +39,6 @@ import com.prealpha.diamond.compiler.node.AConstructorInvocationPrimaryExpressio
 import com.prealpha.diamond.compiler.node.AContinueStatement;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
-import com.prealpha.diamond.compiler.node.ADivideAssignment;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
@@ -69,9 +64,7 @@ import com.prealpha.diamond.compiler.node.ALessThanExpression;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AModulusAssignment;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
-import com.prealpha.diamond.compiler.node.AMultiplyAssignment;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
@@ -82,12 +75,9 @@ import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
-import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
-import com.prealpha.diamond.compiler.node.AShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
-import com.prealpha.diamond.compiler.node.ASubtractAssignment;
 import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
@@ -95,13 +85,11 @@ import com.prealpha.diamond.compiler.node.ATrueLiteral;
 import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
 import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
-import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PArrayAccess;
-import com.prealpha.diamond.compiler.node.PAssignmentTarget;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
@@ -1966,192 +1954,17 @@ final class CodeGenerator extends ScopeAwareWalker {
      */
     @Override
     public void caseAAssignment(AAssignment assignment) {
-        evaluateEasyAssignment("SET", assignment.getTarget(), assignment.getValue());
-    }
-
-    @Override
-    public void caseAAddAssignment(AAddAssignment assignment) {
         inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            String instruction = (i > 0 ? "ADX" : "ADD");
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(target, i)));
-            } else {
-                write(String.format("%s %s %s", instruction, lookup(target, i), lookup(expressionResult, i)));
-            }
-        }
-        expressionResult = target;
-    }
-
-    @Override
-    public void caseASubtractAssignment(ASubtractAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            String instruction = (i > 0 ? "SBX" : "SUB");
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(target, i)));
-            } else {
-                write(String.format("%s %s %s", instruction, lookup(target, i), lookup(expressionResult, i)));
-            }
-        }
-        expressionResult = target;
-    }
-
-    @Override
-    public void caseAMultiplyAssignment(AMultiplyAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            if (i > 0) {
-                write(String.format("ADD %s EX", lookup(target, i)));
-            }
-            String instruction = (((IntegralTypeToken) types.get(assignment)).isSigned() ? "MLI" : "MUL");
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(target, i)));
-            } else {
-                write(String.format("%s %s %s", instruction, lookup(target, i), lookup(expressionResult, i)));
-            }
-        }
-        expressionResult = target;
-    }
-
-    @Override
-    public void caseADivideAssignment(ADivideAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            if (i > 0) {
-                write(String.format("ADD %s EX", lookup(target, i)));
-            }
-            String instruction = (((IntegralTypeToken) types.get(assignment)).isSigned() ? "DVI" : "DIV");
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(target, i)));
-            } else {
-                write(String.format("%s %s %s", instruction, lookup(target, i), lookup(expressionResult, i)));
-            }
-        }
-        expressionResult = target;
-    }
-
-    @Override
-    public void caseAModulusAssignment(AModulusAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            if (i > 0) {
-                write(String.format("ADD %s EX", lookup(target, i)));
-            }
-            String instruction = (((IntegralTypeToken) types.get(assignment)).isSigned() ? "MDI" : "MOD");
-            if (types.get(assignment.getValue()).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(target, i)));
-            } else {
-                write(String.format("%s %s %s", instruction, lookup(target, i), lookup(expressionResult, i)));
-            }
-        }
-        expressionResult = target;
-    }
-
-    @Override
-    public void caseABitwiseAndAssignment(ABitwiseAndAssignment assignment) {
-        evaluateEasyAssignment("AND", assignment.getTarget(), assignment.getValue());
-    }
-
-    @Override
-    public void caseABitwiseXorAssignment(ABitwiseXorAssignment assignment) {
-        evaluateEasyAssignment("XOR", assignment.getTarget(), assignment.getValue());
-    }
-
-    @Override
-    public void caseABitwiseOrAssignment(ABitwiseOrAssignment assignment) {
-        evaluateEasyAssignment("BOR", assignment.getTarget(), assignment.getValue());
-    }
-
-    @Override
-    public void caseAShiftLeftAssignment(AShiftLeftAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        // for this one we have to start at the high-order end
-        for (int i = types.get(assignment).getWidth() - 1; i >= 0; i--) {
-            write(String.format("SHL %s %s", lookup(target, i), lookup(expressionResult, 0)));
-            if ((i + 1) < types.get(assignment).getWidth()) {
-                write(String.format("AND %s EX", lookup(target, i + 1)));
-            }
-        }
-    }
-
-    @Override
-    public void caseAShiftRightAssignment(AShiftRightAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            write(String.format("ASR %s %s", lookup(target, i), lookup(expressionResult, 0)));
-            if (i > 0) {
-                write(String.format("AND %s EX", lookup(target, i - 1)));
-            }
-        }
-    }
-
-    @Override
-    public void caseAUnsignedShiftRightAssignment(AUnsignedShiftRightAssignment assignment) {
-        inline(assignment.getTarget());
-        assert expressionResult != null;
-        assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
-        TypedSymbol target = expressionResult;
-
-        inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment).getWidth(); i++) {
-            write(String.format("SHR %s %s", lookup(target, i), lookup(expressionResult, 0)));
-            if (i > 0) {
-                write(String.format("AND %s EX", lookup(target, i - 1)));
-            }
-        }
-    }
-
-    /*
-     * By "easy" I mean the ones that only involve a single instruction, namely SET (=), AND (&=), XOR (^=), BOR (|=).
-     */
-    private void evaluateEasyAssignment(String instruction, PAssignmentTarget target, PExpression value) {
-        inline(target);
         assert expressionResult != null;
         assert !(expressionResult instanceof Placeholder) || expressionResult instanceof ArrayElementPlaceholder;
         TypedSymbol targetSymbol = expressionResult;
 
-        inline(value);
-        for (int i = 0; i < types.get(target).getWidth(); i++) {
-            if (types.get(value).getWidth() < i) {
-                write(String.format("%s %s 0x0000", instruction, lookup(targetSymbol, i)));
+        inline(assignment.getValue());
+        for (int i = 0; i < types.get(assignment.getTarget()).getWidth(); i++) {
+            if (types.get(assignment.getValue()).getWidth() < i) {
+                write(String.format("SET %s 0x0000", lookup(targetSymbol, i)));
             } else {
-                write(String.format("%s %s %s", instruction, lookup(targetSymbol, i), lookup(expressionResult, i)));
+                write(String.format("SET %s %s", lookup(targetSymbol, i), lookup(expressionResult, i)));
             }
         }
         expressionResult = targetSymbol;

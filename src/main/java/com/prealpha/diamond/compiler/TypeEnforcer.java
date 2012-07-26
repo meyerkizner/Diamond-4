@@ -12,17 +12,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseAndAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseAndExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseOrAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
-import com.prealpha.diamond.compiler.node.ABitwiseXorAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
@@ -33,7 +29,6 @@ import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
-import com.prealpha.diamond.compiler.node.ADivideAssignment;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
@@ -53,9 +48,7 @@ import com.prealpha.diamond.compiler.node.ALessThanExpression;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AModulusAssignment;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
-import com.prealpha.diamond.compiler.node.AMultiplyAssignment;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
@@ -66,12 +59,9 @@ import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
-import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
-import com.prealpha.diamond.compiler.node.AShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
-import com.prealpha.diamond.compiler.node.ASubtractAssignment;
 import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
@@ -79,7 +69,6 @@ import com.prealpha.diamond.compiler.node.ATrueLiteral;
 import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
 import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
-import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
@@ -724,86 +713,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAAssignment(AAssignment assignment) {
         TypeToken targetType = types.get(assignment.getTarget());
         assertAssignableTo(assignment.getValue(), targetType);
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAAddAssignment(AAddAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outASubtractAssignment(ASubtractAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAMultiplyAssignment(AMultiplyAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outADivideAssignment(ADivideAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAModulusAssignment(AModulusAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumeric(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outABitwiseAndAssignment(ABitwiseAndAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outABitwiseXorAssignment(ABitwiseXorAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outABitwiseOrAssignment(ABitwiseOrAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertAssignableTo(assignment.getTarget(), assertBinaryNumericOrBoolean(assignment.getTarget(), assignment.getValue()));
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAShiftLeftAssignment(AShiftLeftAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertIntegral(assignment.getTarget());
-        assertAssignableTo(assignment.getValue(), IntegralTypeToken.UNSIGNED_LONG);
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAShiftRightAssignment(AShiftRightAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertIntegral(assignment.getTarget());
-        assertAssignableTo(assignment.getValue(), IntegralTypeToken.UNSIGNED_LONG);
-        types.put(assignment, targetType);
-    }
-
-    @Override
-    public void outAUnsignedShiftRightAssignment(AUnsignedShiftRightAssignment assignment) {
-        TypeToken targetType = types.get(assignment.getTarget());
-        assertIntegral(assignment.getTarget());
-        assertAssignableTo(assignment.getValue(), IntegralTypeToken.UNSIGNED_LONG);
         types.put(assignment, targetType);
     }
 
