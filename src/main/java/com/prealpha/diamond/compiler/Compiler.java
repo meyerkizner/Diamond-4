@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PushbackReader;
+import java.io.Reader;
 import java.util.List;
 
 public final class Compiler {
@@ -28,13 +29,17 @@ public final class Compiler {
     }
 
     public static List<String> compile(File file) throws IOException, LexerException, ParserException, SemanticException {
+        return compile(new FileReader(file));
+    }
+
+    public static List<String> compile(Reader reader) throws IOException, LexerException, ParserException, SemanticException {
         List<Exception> exceptionBuffer = Lists.newArrayList();
 
-        Lexer lexer = new Lexer(new PushbackReader(new FileReader(file)));
+        Lexer lexer = new Lexer(new PushbackReader(reader));
         Parser parser = new Parser(lexer);
         Start tree = parser.parse();
 
-        NodeReplacementProcessor nodeReplacementProcessor = new NodeReplacementProcessor(exceptionBuffer, file);
+        NodeReplacementProcessor nodeReplacementProcessor = new NodeReplacementProcessor(exceptionBuffer, new File("."));
         tree.apply(nodeReplacementProcessor);
         checkBuffer(exceptionBuffer);
 

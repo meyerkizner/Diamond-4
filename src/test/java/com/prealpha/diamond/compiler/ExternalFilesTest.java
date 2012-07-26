@@ -10,7 +10,6 @@ import com.prealpha.dcputil.emulator.testing.BasicMachineTest;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -41,16 +40,6 @@ public final class ExternalFilesTest extends BasicMachineTest {
 
     private void testFileInPackage(String fileName) throws Exception {
         File file = new File(ExternalFilesTest.class.getResource(fileName).getFile());
-        List<String> assembly = Compiler.compile(file);
-        test(insertBreaks(assembly));
-    }
-
-    private String insertBreaks(List<String> lines) {
-        StringBuilder toReturn = new StringBuilder();
-        for (String line : lines) {
-            toReturn.append(line);
-            toReturn.append('\n');
-        }
-        return toReturn.toString();
+        test(Compiler.compile(file));
     }
 }
