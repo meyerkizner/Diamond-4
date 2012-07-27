@@ -308,6 +308,8 @@ final class CodeGenerator extends ScopeAwareWalker {
             for (TypedSymbol stackSymbol : stack) {
                 if (symbol.equals(stackSymbol)) {
                     break;
+                } else if (stackSymbol instanceof TransientPlaceholder) {
+                    symbolOffset += stackSymbol.getType().getWidth() - ((TransientPlaceholder) stackSymbol).stackOffset;
                 } else {
                     symbolOffset += stackSymbol.getType().getWidth();
                 }
@@ -436,21 +438,29 @@ final class CodeGenerator extends ScopeAwareWalker {
             checkArgument(!(expressionResult instanceof TransientPlaceholder));
             int lastWord = type.getWidth() - 1;
             boolean signed = (type instanceof IntegralTypeToken && ((IntegralTypeToken) type).isSigned());
+            TransientPlaceholder placeholder = new TransientPlaceholder(promotedType);
+            stack.push(placeholder);
+            placeholder.stackOffset = promotedType.getWidth();
             switch (promotedType.getWidth()) {
                 case 4:
                     if (type.getWidth() < 4) {
                         if (signed) {
                             write("SET PUSH " + lookup(expressionResult, lastWord));
                             write("ASR [SP] 16");
+                            placeholder.stackOffset -= 1;
                             write("SET PUSH " + lookup(expressionResult, lastWord));
                             write("ASR [SP] 16");
+                            placeholder.stackOffset -= 1;
                         } else {
                             write("SET PUSH 0x0000");
                             write("SET PUSH 0x0000");
+                            placeholder.stackOffset -= 2;
                         }
                     } else {
                         write("SET PUSH " + lookup(expressionResult, 3));
+                        placeholder.stackOffset -= 1;
                         write("SET PUSH " + lookup(expressionResult, 2));
+                        placeholder.stackOffset -= 1;
                     }
                 case 2:
                     if (type.getWidth() < 2) {
@@ -459,18 +469,19 @@ final class CodeGenerator extends ScopeAwareWalker {
                             write("ASR [SP] 16");
                         } else {
                             write("SET PUSH 0x0000");
-                            write("SET PUSH 0x0000");
                         }
                     } else {
                         write("SET PUSH " + lookup(expressionResult, 1));
                     }
+                    placeholder.stackOffset -= 1;
                 case 1:
                     write("SET PUSH " + lookup(expressionResult, 0));
+                    placeholder.stackOffset -= 1;
                     break;
                 default:
                     assert false;
             }
-            expressionResult = new TransientPlaceholder(promotedType);
+            expressionResult = placeholder;
         }
     }
 
@@ -514,7 +525,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    private static final class TransientPlaceholder extends Placeholder {
+    private final class TransientPlaceholder extends Placeholder {
         private int stackOffset;
 
         public TransientPlaceholder(TypeToken type) {
@@ -525,6 +536,10 @@ final class CodeGenerator extends ScopeAwareWalker {
         public String lookup(int wordOffset) {
             if (wordOffset == stackOffset) {
                 stackOffset += 1;
+                if (stackOffset == getType().getWidth()) {
+                    TypedSymbol popped = stack.pop();
+                    assert (this == popped);
+                }
                 return "POP";
             } else if (wordOffset > stackOffset) {
                 return String.format("[SP+%d]", wordOffset - stackOffset);
