@@ -18,11 +18,15 @@ enum IntegralTypeToken implements TypeToken {
     /*
      * Several methods depend on the order, so don't change it.
      */
-    SIGNED_SHORT(15), UNSIGNED_SHORT(16), SIGNED_INT(31), UNSIGNED_INT(32), SIGNED_LONG(63), UNSIGNED_LONG(64);
+    SIGNED_SHORT("short", 15), UNSIGNED_SHORT("ushort", 16), SIGNED_INT("int", 31), UNSIGNED_INT("uint", 32),
+    SIGNED_LONG("long", 63), UNSIGNED_LONG("ulong", 64);
+
+    private final String name;
 
     private final int width;
 
-    private IntegralTypeToken(int width) {
+    private IntegralTypeToken(String name, int width) {
+        this.name = name;
         this.width = width;
     }
 
@@ -88,7 +92,7 @@ enum IntegralTypeToken implements TypeToken {
 
     @Override
     public String toString() {
-        return name().toLowerCase().replace('_', ' ');
+        return name;
     }
 
     public static IntegralTypeToken fromLiteral(PIntegralLiteral literal) throws SemanticException {

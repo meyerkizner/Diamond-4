@@ -130,7 +130,6 @@ Tokens
 	raise = 'raise';
 	return = 'return';
 	short = 'short';
-	signed = 'signed';
 	static = 'static';
 	super = 'super';
 	switch = 'switch';
@@ -138,7 +137,9 @@ Tokens
 	throw = 'throw';
 	throws_token = 'throws';
 	try = 'try';
-	unsigned = 'unsigned';
+	uint = 'uint';
+	ulong = 'ulong';
+	ushort = 'ushort';
 	virtual = 'virtual';
 	void = 'void';
 	while = 'while';
@@ -350,12 +351,12 @@ Productions
 	expression = assignment_expression {-> assignment_expression.expression};
 	
 	type_token =    {boolean} boolean {-> New type_token.boolean()} |
-					{signed_short} signed? short {-> New type_token.signed_short()} |
-					{unsigned_short} unsigned short {-> New type_token.unsigned_short()} |
-					{signed_int} signed? int {-> New type_token.signed_int()} |
-					{unsigned_int} unsigned int {-> New type_token.unsigned_int()} |
-					{signed_long} signed? long {-> New type_token.signed_long()} |
-					{unsigned_long} unsigned long {-> New type_token.unsigned_long()} |
+					{signed_short} short {-> New type_token.signed_short()} |
+					{unsigned_short} ushort {-> New type_token.unsigned_short()} |
+					{signed_int} int {-> New type_token.signed_int()} |
+					{unsigned_int} uint {-> New type_token.unsigned_int()} |
+					{signed_long} long {-> New type_token.signed_long()} |
+					{unsigned_long} ulong {-> New type_token.unsigned_long()} |
 					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
 					{array} [element_type]:type_token bkt_pair {-> New type_token.array(element_type)};
 	modifier =  {private} private {-> New modifier.private()} |
