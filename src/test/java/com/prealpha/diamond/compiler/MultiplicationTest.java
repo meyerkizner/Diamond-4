@@ -57,108 +57,111 @@ public final class MultiplicationTest extends BasicMachineTest {
 
     @Test
     public void testSignedShortUnsignedShort() throws Exception {
-        doIntTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.UNSIGNED_SHORT);
+        doIntTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.UNSIGNED_SHORT, 0xffffffff);
     }
 
     @Test
     public void testSignedShortSignedInt() throws Exception {
-        doIntTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.SIGNED_INT);
+        doIntTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.SIGNED_INT, 0xffffffff);
     }
 
     @Test
     public void testSignedShortUnsignedInt() throws Exception {
-        doLongTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.UNSIGNED_INT);
+        doLongTest(IntegralTypeToken.SIGNED_SHORT, IntegralTypeToken.UNSIGNED_INT, 0xffffffff);
     }
 
     @Test
     public void testUnsignedShortSignedShort() throws Exception {
-        doIntTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.SIGNED_SHORT);
+        doIntTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.SIGNED_SHORT, 0xffffffff);
     }
 
     @Test
     public void testUnsignedShortUnsignedShort() throws Exception {
-        doShortTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.UNSIGNED_SHORT);
+        doIntTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.UNSIGNED_SHORT, 0x0000ffff);
     }
 
     @Test
     public void testUnsignedShortSignedInt() throws Exception {
-        doIntTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.SIGNED_INT);
+        doIntTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.SIGNED_INT, 0xffffffff);
     }
 
     @Test
     public void testUnsignedShortUnsignedInt() throws Exception {
-        doLongTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.UNSIGNED_INT);
+        doLongTest(IntegralTypeToken.UNSIGNED_SHORT, IntegralTypeToken.UNSIGNED_INT, 0x00000000ffffffffL);
     }
 
     @Test
     public void testSignedIntSignedShort() throws Exception {
-        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.SIGNED_SHORT);
+        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.SIGNED_SHORT, 0xffffffff);
     }
 
     @Test
     public void testSignedIntUnsignedShort() throws Exception {
-        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.UNSIGNED_SHORT);
+        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.UNSIGNED_SHORT, 0xffffffff);
     }
 
     @Test
     public void testSignedIntSignedInt() throws Exception {
-        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.SIGNED_INT);
+        doIntTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.SIGNED_INT, 0xffffffff);
     }
 
     @Test
     public void testSignedIntUnsignedInt() throws Exception {
-        doLongTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.UNSIGNED_INT);
+        doLongTest(IntegralTypeToken.SIGNED_INT, IntegralTypeToken.UNSIGNED_INT, 0xffffffffffffffffL);
     }
 
     @Test
     public void testUnsignedIntSignedShort() throws Exception {
-        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.SIGNED_SHORT);
+        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.SIGNED_SHORT, 0xffffffffffffffffL);
     }
 
     @Test
     public void testUnsignedIntUnsignedShort() throws Exception {
-        doIntTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.UNSIGNED_SHORT);
+        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.UNSIGNED_SHORT, 0x00000000ffffffffL);
     }
 
     @Test
     public void testUnsignedIntSignedInt() throws Exception {
-        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.SIGNED_INT);
+        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.SIGNED_INT, 0xffffffffffffffffL);
     }
 
     @Test
     public void testUnsignedIntUnsignedInt() throws Exception {
-        doIntTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.UNSIGNED_INT);
+        doLongTest(IntegralTypeToken.UNSIGNED_INT, IntegralTypeToken.UNSIGNED_INT, 0x00000000ffffffffL);
     }
 
     private void doShortTest(IntegralTypeToken left, IntegralTypeToken right) throws Exception {
         for (long leftValue : TEST_VALUES.get(left)) {
             for (long rightValue : TEST_VALUES.get(right)) {
-                String expression = String.format("%s left = %d; %s right = %d; result = left * right;", left, leftValue, right, rightValue);
+                String expression = String.format("%s left = %s::cast(%d); %s right = %s::cast(%d); result = left * right;",
+                        left, left, leftValue, right, right, rightValue);
                 testNumericExpression(expression, (short) (leftValue * rightValue));
             }
         }
     }
 
-    private void doIntTest(IntegralTypeToken left, IntegralTypeToken right) throws Exception {
+    private void doIntTest(IntegralTypeToken left, IntegralTypeToken right, int bitmask) throws Exception {
         for (long leftValue : TEST_VALUES.get(left)) {
             for (long rightValue : TEST_VALUES.get(right)) {
-                String expression = String.format("%s left = %d; %s right = %d; result = left * right;", left, leftValue, right, rightValue);
-                testNumericExpression(expression, (int) (leftValue * rightValue));
+                String expression = String.format("%s left = %s::cast(%d); %s right = %s::cast(%d); result = left * right;",
+                        left, left, leftValue, right, right, rightValue);
+                testNumericExpression(expression, (int) (leftValue * rightValue) & bitmask);
             }
         }
     }
 
-    private void doLongTest(IntegralTypeToken left, IntegralTypeToken right) throws Exception {
+    private void doLongTest(IntegralTypeToken left, IntegralTypeToken right, long bitmask) throws Exception {
         for (long leftValue : TEST_VALUES.get(left)) {
             for (long rightValue : TEST_VALUES.get(right)) {
-                String expression = String.format("%s left = %d; %s right = %d; result = left * right;", left, leftValue, right, rightValue);
-                testNumericExpression(expression, leftValue * rightValue);
+                String expression = String.format("%s left = %s::cast(%d); %s right = %s::cast(%d); result = left * right;",
+                        left, left, leftValue, right, right, rightValue);
+                testNumericExpression(expression, leftValue * rightValue & bitmask);
             }
         }
     }
 
     private void testNumericExpression(String expression, long result) throws Exception {
-        String message = String.format("%s = %d", expression, result);
+        String message = String.format("%s [%d]", expression, result);
         String diamond = String.format("void main() { long result = 562958543486978; %s }", expression);
         test(Compiler.compile(new StringReader(diamond)));
         assertEquals(message, result & 0xffff, getMem()[0xfffb]);
