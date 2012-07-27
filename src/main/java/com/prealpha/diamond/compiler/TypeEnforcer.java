@@ -21,6 +21,9 @@ import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
+import com.prealpha.diamond.compiler.node.ACastDeclaration;
+import com.prealpha.diamond.compiler.node.ACastInvocation;
+import com.prealpha.diamond.compiler.node.ACastInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
 import com.prealpha.diamond.compiler.node.AConditionalExpression;
@@ -74,7 +77,6 @@ import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
-import com.prealpha.diamond.compiler.node.PClassDeclaration;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PLiteral;
@@ -94,7 +96,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private final Map<Node, TypeToken> types;
 
-    private PClassDeclaration currentClass;
+    private AClassDeclaration currentClass;
 
     private Node currentFunction;
 
@@ -336,8 +338,42 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
+        try {
+            ConstructorSymbol symbol = getScope().resolveConstructor(Lists.transform(constructorDeclaration.getParameters(), Functions.forMap(types)));
+            if (!symbol.getReturnType().isAssignableTo(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()))) {
+                throw new SemanticException("constructor return type must be assignable to its enclosing type");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+
         currentFunction = null;
         super.outAConstructorDeclaration(constructorDeclaration);
+    }
+
+    @Override
+    public void inACastDeclaration(ACastDeclaration castDeclaration) {
+        if (currentFunction != null) {
+            exceptionBuffer.add(new SemanticException(castDeclaration, "unexpected cast declaration"));
+        } else {
+            currentFunction = castDeclaration;
+        }
+        super.inACastDeclaration(castDeclaration);
+    }
+
+    @Override
+    public void outACastDeclaration(ACastDeclaration castDeclaration) {
+        try {
+            CastSymbol symbol = getScope().resolveCast(types.get(castDeclaration.getParameter()));
+            if (!symbol.getReturnType().isAssignableTo(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()))) {
+                throw new SemanticException("cast return type must be assignable to its enclosing type");
+            }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+
+        currentFunction = null;
+        super.outACastDeclaration(castDeclaration);
     }
 
     @Override
@@ -358,13 +394,18 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAThisPrimaryExpression(AThisPrimaryExpression primaryExpression) {
-        TypeToken typeToken = new UserDefinedTypeToken(((AClassDeclaration) currentClass).getName().getText());
+        TypeToken typeToken = new UserDefinedTypeToken(currentClass.getName().getText());
         types.put(primaryExpression, typeToken);
     }
 
     @Override
     public void outAParentheticalPrimaryExpression(AParentheticalPrimaryExpression primaryExpression) {
         types.put(primaryExpression, types.get(primaryExpression.getExpression()));
+    }
+
+    @Override
+    public void outACastInvocationPrimaryExpression(ACastInvocationPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getCastInvocation()));
     }
 
     @Override
@@ -466,6 +507,33 @@ final class TypeEnforcer extends ScopeAwareWalker {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
             types.put(invocation.parent(), symbol.getReturnType());
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    @Override
+    public void outACastInvocation(ACastInvocation invocation) {
+        try {
+            Scope scope;
+            if (invocation.getTarget() != null) {
+                TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
+                if (scopeToken instanceof UserDefinedTypeToken) {
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
+                } else {
+                    types.put(invocation, scopeToken);
+                    return;
+                }
+            } else {
+                scope = getScope();
+            }
+            try {
+                CastSymbol symbol = scope.resolveCast(types.get(invocation.getValue()));
+                types.put(invocation, symbol.getReturnType());
+            } catch (SemanticException sx) {
+                types.put(invocation, new UserDefinedTypeToken(currentClass.getName().getText()));
+            }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }

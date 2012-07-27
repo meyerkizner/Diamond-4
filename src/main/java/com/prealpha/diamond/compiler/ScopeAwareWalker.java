@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
+import com.prealpha.diamond.compiler.node.ACastDeclaration;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
@@ -121,6 +122,16 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
     @Override
     public void outAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
         onExitScope(constructorDeclaration);
+    }
+
+    @Override
+    public void inACastDeclaration(ACastDeclaration castDeclaration) {
+        onEnterScope(castDeclaration);
+    }
+
+    @Override
+    public void outACastDeclaration(ACastDeclaration castDeclaration) {
+        onExitScope(castDeclaration);
     }
 
     @Override

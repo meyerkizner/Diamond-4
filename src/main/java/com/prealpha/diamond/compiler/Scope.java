@@ -28,6 +28,8 @@ final class Scope {
 
     private final Map<List<TypeToken>, ConstructorSymbol> constructorSymbols;
 
+    private final Map<TypeToken, CastSymbol> castSymbols;
+
     private final Map<String, FieldSymbol> fieldSymbols;
 
     private final Map<String, LocalSymbol> localSymbols;
@@ -37,6 +39,7 @@ final class Scope {
         classSymbols = Maps.newHashMap();
         functionSymbols = HashBasedTable.create();
         constructorSymbols = Maps.newHashMap();
+        castSymbols = Maps.newHashMap();
         fieldSymbols = Maps.newLinkedHashMap();
         localSymbols = Maps.newLinkedHashMap();
     }
@@ -126,6 +129,39 @@ final class Scope {
             return parent.resolveConstructor();
         } else {
             throw new SemanticException("cannot resolve constructor symbol \"new\"");
+        }
+    }
+
+    void register(CastSymbol castSymbol) throws SemanticException {
+        assert castSymbol.getParameters().size() == 1;
+        TypeToken parameter = castSymbol.getParameters().get(0).getType();
+        if (!castSymbols.containsKey(parameter)) {
+            castSymbols.put(parameter, castSymbol);
+        } else {
+            throw new SemanticException(String.format("duplicate cast \"cast(%s)\"", parameter));
+        }
+    }
+
+    public CastSymbol resolveCast(TypeToken parameterType) throws SemanticException {
+        Set<CastSymbol> matches = resolveParametrized(castSymbols.values(), ImmutableList.of(parameterType));
+        if (matches.size() == 1) {
+            return matches.iterator().next();
+        } else if (matches.size() > 1) {
+            throw new SemanticException(String.format("ambiguous cast symbol \"cast(%s)\"", parameterType));
+        } else if (parent != null) {
+            return parent.resolveCast(parameterType);
+        } else {
+            throw new SemanticException(String.format("cannot resolve cast symbol \"cast(%s)\"", parameterType));
+        }
+    }
+
+    public Map<TypeToken, CastSymbol> resolveCast() throws SemanticException {
+        if (!castSymbols.isEmpty()) {
+            return ImmutableMap.copyOf(castSymbols);
+        } else if (parent != null) {
+            return parent.resolveCast();
+        } else {
+            throw new SemanticException("cannot resolve cast symbol \"cast\"");
         }
     }
 

@@ -6,6 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.prealpha.diamond.compiler.node.ACastDeclaration;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
@@ -75,6 +76,15 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
             exceptionBuffer.add(sx);
         }
         super.inAConstructorDeclaration(constructorDeclaration);
+    }
+
+    @Override
+    public void inACastDeclaration(ACastDeclaration castDeclaration) {
+        try {
+            getScope().register(new CastSymbol(castDeclaration, currentClass));
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
     }
 
     @Override

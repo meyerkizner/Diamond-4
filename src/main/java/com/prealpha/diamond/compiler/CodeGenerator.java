@@ -8,6 +8,7 @@ package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Functions;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ListMultimap;
@@ -26,6 +27,10 @@ import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ABlockStatement;
 import com.prealpha.diamond.compiler.node.ABreakStatement;
 import com.prealpha.diamond.compiler.node.ACaseGroup;
+import com.prealpha.diamond.compiler.node.ACastClassStatement;
+import com.prealpha.diamond.compiler.node.ACastDeclaration;
+import com.prealpha.diamond.compiler.node.ACastInvocation;
+import com.prealpha.diamond.compiler.node.ACastInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AClassDeclaration;
 import com.prealpha.diamond.compiler.node.AClassTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AConditionalAndExpression;
@@ -804,6 +809,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
+    public void caseACastClassStatement(ACastClassStatement classStatement) {
+        inline(classStatement.getCastDeclaration());
+    }
+
+    @Override
     public void caseAFieldDeclaration(AFieldDeclaration declaration) {
         try {
             FieldSymbol symbol = getScope().resolveField(declaration.getName().getText());
@@ -833,6 +843,11 @@ final class CodeGenerator extends ScopeAwareWalker {
         evaluateParametrizedDeclaration(declaration, "new", declaration.getParameters(), declaration.getBody());
     }
 
+    @Override
+    public void caseACastDeclaration(ACastDeclaration declaration) {
+        evaluateParametrizedDeclaration(declaration, "cast", ImmutableList.of(declaration.getParameter()), declaration.getBody());
+    }
+
     /*
      * This method invokes super.onEnterScope(Node) and super.onExitScope(Node) directly, bypassing in particular the
      * overridden onExitScope(Node) implementation in this class. This is because of the unusual positioning of locals
@@ -847,6 +862,9 @@ final class CodeGenerator extends ScopeAwareWalker {
             ParametrizedSymbol symbol;
             if (declaration instanceof AConstructorDeclaration) {
                 symbol = getScope().resolveConstructor(parameterTypes);
+            } else if (declaration instanceof ACastDeclaration) {
+                assert parameterTypes.size() == 1;
+                symbol = getScope().resolveCast(parameterTypes.get(0));
             } else {
                 symbol = getScope().resolveFunction(name, parameterTypes);
             }
@@ -955,6 +973,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConstructorInvocationPrimaryExpression(AConstructorInvocationPrimaryExpression primaryExpression) {
         inline(primaryExpression.getConstructorInvocation());
+    }
+
+    @Override
+    public void caseACastInvocationPrimaryExpression(ACastInvocationPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getCastInvocation());
     }
 
     @Override
@@ -1095,6 +1118,38 @@ final class CodeGenerator extends ScopeAwareWalker {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
             evaluateParametrizedInvocation(symbol, invocation.getParameters());
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    /*
+    * TODO: duplicates TypeEnforcer.outACastInvocation(ACastInvocation)
+    */
+    @Override
+    public void caseACastInvocation(ACastInvocation invocation) {
+        try {
+            Scope scope;
+            if (invocation.getTarget() != null) {
+                TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
+                if (scopeToken instanceof UserDefinedTypeToken) {
+                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
+                    scope = getScope(classSymbol.getDeclaration());
+                } else {
+                    inline(invocation.getValue());
+                    requireValue(types.get(invocation.getValue()), types.get(invocation));
+                    return;
+                }
+            } else {
+                scope = getScope();
+            }
+            try {
+                CastSymbol symbol = scope.resolveCast(types.get(invocation.getValue()));
+                evaluateParametrizedInvocation(symbol, ImmutableList.of(invocation.getValue()));
+            } catch (SemanticException sx) {
+                inline(invocation.getValue());
+                requireValue(types.get(invocation.getValue()), types.get(invocation));
+            }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
