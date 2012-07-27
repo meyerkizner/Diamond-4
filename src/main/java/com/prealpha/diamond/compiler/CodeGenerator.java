@@ -302,7 +302,9 @@ final class CodeGenerator extends ScopeAwareWalker {
     private String lookup(TypedSymbol symbol, int wordOffset) {
         checkArgument(symbol == null || wordOffset < symbol.getType().getWidth());
         checkArgument(wordOffset >= 0);
-        if (symbol instanceof LocalSymbol || symbol instanceof FunctionPlaceholder) {
+        if (symbol instanceof TransientPlaceholder && stack.peek() == symbol) {
+            return ((TransientPlaceholder) symbol).lookup(wordOffset);
+        } else if (symbol instanceof LocalSymbol || symbol instanceof FunctionPlaceholder || symbol instanceof TransientPlaceholder) {
             assert stack.contains(symbol);
             int symbolOffset = 0;
             for (TypedSymbol stackSymbol : stack) {
@@ -319,8 +321,6 @@ final class CodeGenerator extends ScopeAwareWalker {
             } else {
                 return String.format("[SP+%d]", symbolOffset + wordOffset);
             }
-        } else if (symbol instanceof TransientPlaceholder) {
-            return ((TransientPlaceholder) symbol).lookup(wordOffset);
         } else if (symbol instanceof ArrayElementPlaceholder) {
             if (wordOffset == 0) {
                 return "[A]";
@@ -1289,19 +1289,19 @@ final class CodeGenerator extends ScopeAwareWalker {
                     try {
                         PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
                         BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
-                        if (value.longValue() == Long.MIN_VALUE) {
+                        if (value.equals(BigInteger.valueOf(Long.MIN_VALUE).negate())) {
                             write("SET A 0x0000");
                             write("SET B 0x0000");
                             write("SET C 0x0000");
                             write("SET X 0x8000");
                             expressionResult = null;
                             return;
-                        } else if (value.intValue() == Integer.MIN_VALUE) {
+                        } else if (value.equals(BigInteger.valueOf(Integer.MIN_VALUE).negate())) {
                             write("SET A 0x0000");
                             write("SET B 0x8000");
                             expressionResult = null;
                             return;
-                        } else if (value.shortValue() == Short.MIN_VALUE) {
+                        } else if (value.equals(BigInteger.valueOf(Short.MIN_VALUE).negate())) {
                             write("SET A 0x8000");
                             expressionResult = null;
                             return;
@@ -1391,37 +1391,70 @@ final class CodeGenerator extends ScopeAwareWalker {
         if (((IntegralTypeToken) types.get(expression)).isSigned()) {
             if (types.get(expression).getWidth() == 1) {
                 write("MLI A " + lookup(left, 0));
+                expressionResult = null;
             } else {
                 int lastWord = types.get(expression).getWidth() - 1;
-                write("SET Z " + lookupSafe(left, lastWord));
-                write("XOR Z " + lookupSafe(expressionResult, lastWord));
+                write("SET J " + lookupSafe(left, lastWord));
+                write("XOR J " + lookupSafe(expressionResult, lastWord));
                 conditionallyNegate(types.get(expression), left, lookupSafe(left, lastWord), "negate_left_" + getBaseLabel(expression));
                 conditionallyNegate(types.get(expression), expressionResult, lookupSafe(expressionResult, lastWord), "negate_right_" + getBaseLabel(expression));
-                write("MUL A " + lookup(left, 0));
+                doLongMultiply(types.get(expression), left, expressionResult);
             }
-        } else {
+        } else if (types.get(expression).getWidth() == 1) {
             write("MUL A " + lookup(left, 0));
+            expressionResult = null;
+        } else {
+            doLongMultiply(types.get(expression), left, expressionResult);
         }
-        if (types.get(expression).getWidth() >= 2) {
-            write("SET Y EX");
-            write("MUL B " + lookup(left, 1));
-            write("ADD B Y");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("SET Y EX");
-            write("MUL C " + lookup(left, 2));
-            write("ADD C Y");
-            write("SET Y EX");
-            write("MUL X " + lookup(left, 3));
-            write("ADD X Y");
-        }
-        expressionResult = null;
         if (((IntegralTypeToken) types.get(expression)).isSigned() && types.get(expression).getWidth() > 1) {
-            conditionallyNegate(types.get(expression), expressionResult, "Z", "negate_result_" + getBaseLabel(expression));
+            conditionallyNegate(types.get(expression), expressionResult, "J", "negate_result_" + getBaseLabel(expression));
         }
         if (left instanceof TransientPlaceholder) {
             doReclaimLocal(left);
+            if (stack.contains(left)) {
+                TypedSymbol popped = stack.pop();
+                assert left.equals(popped);
+            }
         }
+    }
+
+    private void doLongMultiply(TypeToken resultType, TypedSymbol left, TypedSymbol right) {
+        final int width = resultType.getWidth();
+
+        TypedSymbol placeholder = new TransientPlaceholder(resultType);
+        stack.push(placeholder);
+        for (int i = 0; i < width; i++) {
+            write("SET PUSH 0x0000");
+        }
+        for (int j = 0; j < width; j++) {
+            write("SET Z 0x0000");
+            for (int i = 0; i < width; i++) {
+                if (i + j >= width) {
+                    continue;
+                }
+
+                write("SET Y " + lookupSafe(left, i));
+                write("MUL Y " + lookupSafe(right, j));
+                write("SET I EX");
+                write("ADD Y " + lookupSafe(placeholder, i + j));
+                write("ADD I EX");
+                write("ADD Y Z");
+                write("SET Z EX");
+                write("ADD Z I");
+                write(String.format("SET %s Y", lookupSafe(placeholder, i + j)));
+            }
+        }
+
+        write("SET A " + lookup(placeholder, 0));
+        if (width >= 2) {
+            write("SET B " + lookup(placeholder, 1));
+        }
+        if (width >= 4) {
+            write("SET C " + lookup(placeholder, 2));
+            write("SET X " + lookup(placeholder, 3));
+        }
+        assert !stack.contains(placeholder);
+        expressionResult = null;
     }
 
     @Override

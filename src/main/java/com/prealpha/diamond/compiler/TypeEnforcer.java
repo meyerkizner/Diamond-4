@@ -574,11 +574,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     if (literal instanceof AIntegralLiteral) {
                         PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
                         BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
-                        if (value.longValue() == Long.MIN_VALUE) {
+                        if (value.equals(BigInteger.valueOf(Long.MIN_VALUE).negate())) {
                             valueType = IntegralTypeToken.SIGNED_LONG;
-                        } else if (value.intValue() == Integer.MIN_VALUE) {
+                        } else if (value.equals(BigInteger.valueOf(Integer.MIN_VALUE).negate())) {
                             valueType = IntegralTypeToken.SIGNED_INT;
-                        } else if (value.shortValue() == Short.MIN_VALUE) {
+                        } else if (value.equals(BigInteger.valueOf(Short.MIN_VALUE).negate())) {
                             valueType = IntegralTypeToken.SIGNED_SHORT;
                         }
                     }
