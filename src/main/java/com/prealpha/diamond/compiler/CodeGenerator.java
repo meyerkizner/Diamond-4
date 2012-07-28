@@ -332,7 +332,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                     return String.format("[A+%d]", fieldOffset);
                 }
             } else {
-                return getStartLabel(symbol.getDeclaration());
+                return "[" + getStartLabel(symbol.getDeclaration()) + "]";
             }
         } else {
             // the expression result is a value, stored in register A
