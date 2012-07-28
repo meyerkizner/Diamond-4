@@ -54,6 +54,9 @@
 
         <resources>
             <resource>
+                <directory>${basedir}/src/main/resources</directory>
+            </resource>
+            <resource>
                 <!-- include lexer.dat and parser.dat -->
                 <directory>${basedir}/target/generated-sources/sablecc</directory>
                 <includes>

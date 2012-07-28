@@ -29,17 +29,21 @@ public final class Compiler {
     }
 
     public static List<String> compile(File file) throws IOException, LexerException, ParserException, SemanticException {
-        return compile(new FileReader(file));
+        return doCompile(new FileReader(file), file);
     }
 
     public static List<String> compile(Reader reader) throws IOException, LexerException, ParserException, SemanticException {
+        return doCompile(reader, new File("."));
+    }
+
+    private static List<String> doCompile(Reader reader, File mainFile) throws IOException, LexerException, ParserException, SemanticException {
         List<Exception> exceptionBuffer = Lists.newArrayList();
 
         Lexer lexer = new Lexer(new PushbackReader(reader));
         Parser parser = new Parser(lexer);
         Start tree = parser.parse();
 
-        NodeReplacementProcessor nodeReplacementProcessor = new NodeReplacementProcessor(exceptionBuffer, new File("."));
+        NodeReplacementProcessor nodeReplacementProcessor = new NodeReplacementProcessor(exceptionBuffer, mainFile);
         tree.apply(nodeReplacementProcessor);
         checkBuffer(exceptionBuffer);
 

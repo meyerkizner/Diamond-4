@@ -237,7 +237,7 @@ Productions
     for_statement {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement {-> New statement.for(init.expression, condition, update.expression, statement)};
     for_statement_no_short_if {-> statement} = for l_par [init]:statement_expression? [semi1]:semi [condition]:expression? [semi2]:semi [update]:statement_expression? r_par statement_no_short_if {-> New statement.for(init.expression, condition, update.expression, statement_no_short_if.statement)};
 	
-    delete_statement {-> statement} = delete identifier semi {-> New statement.delete(identifier)};
+    delete_statement {-> statement} = delete expression semi {-> New statement.delete(expression)};
 	
 	break_statement {-> statement} = break semi {-> New statement.break()};
 	
@@ -368,7 +368,7 @@ Abstract Syntax Tree
 							{for} [init]:expression? [condition]:expression? [update]:expression? [body]:statement |
 							{do} [body]:statement [condition]:expression |
 							{switch} [value]:expression [body]:case_group* |
-							{delete} [variable]:identifier |
+							{delete} [object]:expression |
 							{break} |
 							{continue} |
 							{return} [return_value]:expression? |

@@ -36,6 +36,12 @@ public final class ExternalFilesTest extends BasicMachineTest {
         assertEquals(171, getMem()[0xfffe]);
     }
 
+    @Test
+    public void testArithmeticObject() throws Exception {
+        testFileInPackage("ArithmeticObject.dmd");
+        assertEquals(10, getMem()[0xfffd]);
+    }
+
     private void testFileInPackage(String fileName) throws Exception {
         File file = new File(ExternalFilesTest.class.getResource(fileName).getFile());
         test(Compiler.compile(file));

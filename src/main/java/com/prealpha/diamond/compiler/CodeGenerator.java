@@ -15,6 +15,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
+import com.google.common.io.CharStreams;
 import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
@@ -107,6 +108,10 @@ import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -213,7 +218,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         flowStructures = Lists.newLinkedList();
     }
 
-    public List<String> getInstructions() throws SemanticException {
+    public List<String> getInstructions() throws IOException, SemanticException {
         AVoidFunctionDeclaration mainMethod = null;
         for (PTopLevelStatement topLevelStatement : instructions.keySet()) {
             if (topLevelStatement instanceof AFunctionTopLevelStatement) {
@@ -231,10 +236,22 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
 
         List<String> toReturn = Lists.newArrayList();
+
+        toReturn.add("SET X 0x8000");
+        toReturn.add("JSR heapsetup");
         toReturn.add("JSR " + getStartLabel(mainMethod));
         toReturn.add("BRK");
-        toReturn.add("SUB PC 0x0001");
+        toReturn.add("SUB PC 0x0001 ; for emulators that don't support BRK");
         toReturn.addAll(instructions.values());
+
+        InputStream stream = getClass().getResourceAsStream("malloc.dasm16");
+        if (stream == null) {
+            throw new FileNotFoundException("could not locate malloc.dasm16");
+        }
+        List<String> malloc = CharStreams.readLines(new InputStreamReader(stream));
+        toReturn.addAll(malloc);
+        stream.close();
+
         return toReturn;
     }
 
@@ -553,7 +570,9 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseADeleteStatement(ADeleteStatement statement) {
-        throw new NoHeapException();
+        inline(statement.getObject());
+        requireValue(types.get(statement.getObject()));
+        write("JSR heapfree");
     }
 
     @Override
@@ -843,7 +862,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseAStringLiteral(AStringLiteral literal) {
-        throw new NoHeapException();
+        throw new StringLiteralException();
     }
 
     @Override
@@ -986,7 +1005,11 @@ final class CodeGenerator extends ScopeAwareWalker {
             if (!(symbol instanceof ConstructorSymbol)) {
                 write("SET PUSH " + lookup(expressionResult));
             } else {
-                throw new NoHeapException();
+                Scope classScope = getScope(symbol.getDeclaringClass().getDeclaration());
+                int objectWidth = classScope.getFields().size();
+                write(String.format("SET X 0x%04x", objectWidth));
+                write("JSR heapalloc");
+                write("SET PUSH A");
             }
             stack.push(thisPlaceholder);
         } else {

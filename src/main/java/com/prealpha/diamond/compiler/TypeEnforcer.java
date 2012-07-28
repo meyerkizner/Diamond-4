@@ -7,7 +7,6 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Functions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -34,6 +33,7 @@ import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
 import com.prealpha.diamond.compiler.node.ADecimalIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
+import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
@@ -106,12 +106,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         super(scopeSource);
         checkNotNull(exceptionBuffer);
         this.exceptionBuffer = exceptionBuffer;
-        this.types = Maps.filterEntries(Maps.<Node, TypeToken> newHashMap(), new Predicate<Map.Entry<Node, TypeToken>>() {
-            @Override
-            public boolean apply(Map.Entry<Node, TypeToken> input) {
-                return (input.getKey() != null && input.getValue() != null);
-            }
-        });
+        this.types = Maps.newHashMap();
     }
 
     public Map<Node, TypeToken> getTypes() {
@@ -152,7 +147,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new AssertionError("cannot type-check node which was not previously encountered");
             }
         } else if (types.get(node).isReference()) {
-            String message = String.format("expected node with type <numeric, boolean>; found %s", types.get(node));
+            String message = String.format("expected node with type <primitive>; found %s", types.get(node));
             exceptionBuffer.add(new SemanticException(node, message));
         }
     }
@@ -161,6 +156,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
         assertPrimitive(left);
         assertPrimitive(right);
         return assertEqual(left, right);
+    }
+
+    private void assertReference(Node node) {
+        if (!types.containsKey(node)) {
+            if (exceptionBuffer.isEmpty()) {
+                throw new AssertionError("cannot type-check node which was not previously encountered");
+            }
+        } else if (!types.get(node).isReference()) {
+            String message = String.format("expected node with type <reference>; found %s", types.get(node));
+            exceptionBuffer.add(new SemanticException(node, message));
+        }
     }
 
     private TypeToken assertEqual(Node left, Node right) {
@@ -241,6 +247,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
         } else {
             throw new UnsupportedOperationException("unknown case group flavor");
         }
+    }
+
+    @Override
+    public void outADeleteStatement(ADeleteStatement deleteStatement) {
+        assertReference(deleteStatement.getObject());
     }
 
     @Override

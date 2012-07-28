@@ -174,7 +174,7 @@ final class LineNumberFinder extends AnalysisAdapter {
     }
 
     public void caseADeleteStatement(ADeleteStatement node) {
-        node.getVariable().apply(this);
+        node.getObject().apply(this);
     }
 
     public void caseABreakStatement(ABreakStatement node) {
