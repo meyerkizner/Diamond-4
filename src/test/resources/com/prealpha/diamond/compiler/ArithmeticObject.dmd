@@ -3,6 +3,7 @@ class ArithmeticObject {
 
 	static ArithmeticObject new() {
 		value = 0;
+		return this;
 	}
 
 	int getValue() {

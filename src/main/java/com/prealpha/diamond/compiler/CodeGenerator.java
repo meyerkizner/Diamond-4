@@ -1019,7 +1019,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
 
         if (thisPlaceholder != null) {
-            write("ADD SP 1"); // clear out this
+            reclaimLocal(thisPlaceholder);
         }
 
         // the function invocation will have already set the relevant registers
@@ -1460,7 +1460,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
         inline(assignmentTarget.getLocalDeclaration());
-        write("SUB SP 0x0001");
+        write("SET PUSH EX");
     }
 
     @Override
