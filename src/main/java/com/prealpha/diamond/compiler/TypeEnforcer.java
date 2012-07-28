@@ -7,6 +7,7 @@
 package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Functions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -42,6 +43,7 @@ import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
 import com.prealpha.diamond.compiler.node.AExpressionFieldAccess;
 import com.prealpha.diamond.compiler.node.AExpressionFunctionInvocation;
+import com.prealpha.diamond.compiler.node.AExpressionStatement;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
 import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
@@ -85,6 +87,7 @@ import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PExpression;
+import com.prealpha.diamond.compiler.node.PFunctionInvocation;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
@@ -108,7 +111,12 @@ final class TypeEnforcer extends ScopeAwareWalker {
         super(scopeSource);
         checkNotNull(exceptionBuffer);
         this.exceptionBuffer = exceptionBuffer;
-        this.types = Maps.newHashMap();
+        this.types = Maps.filterEntries(Maps.<Node, TypeToken>newHashMap(), new Predicate<Map.Entry<Node, TypeToken>>() {
+            @Override
+            public boolean apply(Map.Entry<Node, TypeToken> input) {
+                return (input.getKey() != null && input.getValue() != null);
+            }
+        });
     }
 
     public Map<Node, TypeToken> getTypes() {
@@ -402,7 +410,12 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAFunctionInvocationPrimaryExpression(AFunctionInvocationPrimaryExpression primaryExpression) {
-        types.put(primaryExpression, types.get(primaryExpression.getFunctionInvocation()));
+        if (types.containsKey(primaryExpression.getFunctionInvocation())) {
+            types.put(primaryExpression, types.get(primaryExpression.getFunctionInvocation()));
+        } else {
+            assert primaryExpression.parent() instanceof APrimaryExpression;
+            assert primaryExpression.parent().parent() instanceof AExpressionStatement;
+        }
     }
 
     @Override
@@ -470,7 +483,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         try {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
-            types.put(invocation, symbol.getReturnType());
+            enforceFunctionInvocation(invocation, symbol);
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -488,7 +501,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 if (symbol.getModifiers().contains(Modifier.STATIC)) {
                     throw new SemanticException("cannot invoke a static method on an instance");
                 }
-                types.put(invocation, symbol.getReturnType());
+                enforceFunctionInvocation(invocation, symbol);
             } else {
                 throw new SemanticException(invocation, "built-in types do not currently support any functions");
             }
@@ -517,9 +530,26 @@ final class TypeEnforcer extends ScopeAwareWalker {
             if (!symbol.getModifiers().contains(Modifier.STATIC)) {
                 throw new SemanticException(invocation, "cannot invoke an instance method statically");
             }
-            types.put(invocation, symbol.getReturnType());
+            enforceFunctionInvocation(invocation, symbol);
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
+        }
+    }
+
+    private void enforceFunctionInvocation(PFunctionInvocation invocation, FunctionSymbol symbol) {
+        if (symbol.getReturnType() != null) {
+            types.put(invocation, symbol.getReturnType());
+        } else {
+            // we can't actually put it in the map
+            // however, we should throw an exception if this is used other than as a standalone statement
+            if (invocation.parent() instanceof AFunctionInvocationPrimaryExpression) {
+                if (invocation.parent().parent() instanceof APrimaryExpression) {
+                    if (invocation.parent().parent().parent() instanceof AExpressionStatement) {
+                        return;
+                    }
+                }
+            }
+            exceptionBuffer.add(new SemanticException(invocation, "cannot invoke a void function except as a standalone statement"));
         }
     }
 
@@ -627,7 +657,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAPrimaryExpression(APrimaryExpression primaryExpression) {
-        types.put(primaryExpression, types.get(primaryExpression.getPrimaryExpression()));
+        if (types.containsKey(primaryExpression.getPrimaryExpression())) {
+            types.put(primaryExpression, types.get(primaryExpression.getPrimaryExpression()));
+        } else {
+            assert primaryExpression.parent() instanceof AExpressionStatement;
+        }
     }
 
     @Override
