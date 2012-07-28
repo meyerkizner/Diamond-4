@@ -12,7 +12,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.node.AAddExpression;
+import com.prealpha.diamond.compiler.node.AArrayAccess;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
 import com.prealpha.diamond.compiler.node.ABinaryIntegralLiteral;
@@ -31,16 +33,21 @@ import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
+import com.prealpha.diamond.compiler.node.AConstructorInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ADecimalIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
-import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
+import com.prealpha.diamond.compiler.node.AExpressionFieldAccess;
+import com.prealpha.diamond.compiler.node.AExpressionFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
+import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
+import com.prealpha.diamond.compiler.node.AFunctionInvocationPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AGreaterOrEqualExpression;
 import com.prealpha.diamond.compiler.node.AGreaterThanExpression;
 import com.prealpha.diamond.compiler.node.AHexIntegralLiteral;
@@ -61,10 +68,6 @@ import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AOctalIntegralLiteral;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
-import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
-import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
-import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
@@ -73,8 +76,8 @@ import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
-import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
-import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
+import com.prealpha.diamond.compiler.node.ATypeTokenFieldAccess;
+import com.prealpha.diamond.compiler.node.ATypeTokenFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
@@ -83,7 +86,6 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
-import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
 import java.math.BigInteger;
@@ -388,11 +390,6 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
-        types.put(primaryExpression, types.get(primaryExpression.getQualifiedName()));
-    }
-
-    @Override
     public void outAThisPrimaryExpression(AThisPrimaryExpression primaryExpression) {
         TypeToken typeToken = new UserDefinedTypeToken(currentClass.getName().getText());
         types.put(primaryExpression, typeToken);
@@ -404,8 +401,28 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
+    public void outAFunctionInvocationPrimaryExpression(AFunctionInvocationPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getFunctionInvocation()));
+    }
+
+    @Override
+    public void outAConstructorInvocationPrimaryExpression(AConstructorInvocationPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getConstructorInvocation()));
+    }
+
+    @Override
     public void outACastInvocationPrimaryExpression(ACastInvocationPrimaryExpression primaryExpression) {
         types.put(primaryExpression, types.get(primaryExpression.getCastInvocation()));
+    }
+
+    @Override
+    public void outAFieldAccessPrimaryExpression(AFieldAccessPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getFieldAccess()));
+    }
+
+    @Override
+    public void outAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression primaryExpression) {
+        types.put(primaryExpression, types.get(primaryExpression.getArrayAccess()));
     }
 
     @Override
@@ -453,53 +470,54 @@ final class TypeEnforcer extends ScopeAwareWalker {
         try {
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
-            types.put(invocation.parent(), symbol.getReturnType());
+            types.put(invocation, symbol.getReturnType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    /**
-     * Resolve qualified function invocations using the following rules:
-     * <ul>
-     *     <li>If qualified with an expression, resolve non-static functions within the scope of the expression type.</li>
-     *     <li>If qualified with a type token, resolve static functions within the scope of the named type.</li>
-     *     <li>If qualified with no target, resolve functions within the global scope.</li>
-     * </ul>
-     *
-     * @param invocation the qualified function invocation
-     */
     @Override
-    public void outAQualifiedFunctionInvocation(AQualifiedFunctionInvocation invocation) {
+    public void outAExpressionFunctionInvocation(AExpressionFunctionInvocation invocation) {
         try {
-            PQualifiedName qualifiedName = invocation.getFunctionName();
-            TypeToken type;
-            String functionName;
-            if (qualifiedName instanceof AExpressionQualifiedName) {
-                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                type = types.get(expressionName.getTarget());
-                functionName = expressionName.getName().getText();
-            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
-                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                type = (typeName.getTarget() == null ? null : TypeTokenUtil.fromNode(typeName.getTarget()));
-                functionName = typeName.getName().getText();
-            } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (type == null || type instanceof UserDefinedTypeToken) {
-                Scope scope;
-                if (type != null) {
-                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                    scope = getScope(classSymbol.getDeclaration());
-                } else {
-                    scope = getScope(null);
-                }
+            TypeToken enclosingType = types.get(invocation.getTarget());
+            if (enclosingType instanceof UserDefinedTypeToken) {
+                String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+                Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
                 List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
-                FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
-                types.put(invocation.parent(), symbol.getReturnType());
+                FunctionSymbol symbol = scope.resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+                if (symbol.getModifiers().contains(Modifier.STATIC)) {
+                    throw new SemanticException("cannot invoke a static method on an instance");
+                }
+                types.put(invocation, symbol.getReturnType());
             } else {
-                throw new SemanticException("built-in types do not currently support any functions");
+                throw new SemanticException(invocation, "built-in types do not currently support any functions");
             }
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
+    @Override
+    public void outATypeTokenFunctionInvocation(ATypeTokenFunctionInvocation invocation) {
+        try {
+            Scope scope;
+            if (invocation.getTarget() != null) {
+                TypeToken enclosingType = types.get(invocation.getTarget());
+                if (enclosingType instanceof UserDefinedTypeToken) {
+                    String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+                    scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+                } else {
+                    throw new SemanticException(invocation, "built-in types do not currently support any functions");
+                }
+            } else {
+                scope = getScope();
+            }
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            FunctionSymbol symbol = scope.resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            if (!symbol.getModifiers().contains(Modifier.STATIC)) {
+                throw new SemanticException(invocation, "cannot invoke an instance method statically");
+            }
+            types.put(invocation, symbol.getReturnType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -522,7 +540,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             }
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
-            types.put(invocation.parent(), symbol.getReturnType());
+            types.put(invocation, symbol.getReturnType());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
@@ -556,15 +574,19 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAUnqualifiedArrayAccess(AUnqualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), PrimitiveTypeToken.UINT);
+    public void outAExpressionFieldAccess(AExpressionFieldAccess fieldAccess) {
         try {
-            try {
-                LocalSymbol localSymbol = getScope().resolveLocal(arrayAccess.getArrayName().getText());
-                enforceArrayAccess(arrayAccess, localSymbol);
-            } catch (SemanticException sx) {
-                FieldSymbol fieldSymbol = getScope().resolveField(arrayAccess.getArrayName().getText());
-                enforceArrayAccess(arrayAccess, fieldSymbol);
+            TypeToken enclosingType = types.get(fieldAccess.getTarget());
+            if (enclosingType instanceof UserDefinedTypeToken) {
+                String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+                Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+                FieldSymbol symbol = scope.resolveField(fieldAccess.getFieldName().getText());
+                if (symbol.getModifiers().contains(Modifier.STATIC)) {
+                    throw new SemanticException("cannot access a static field using an instance");
+                }
+                types.put(fieldAccess, symbol.getType());
+            } else {
+                throw new SemanticException(fieldAccess, "built-in types do not currently support any fields");
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -572,70 +594,34 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), PrimitiveTypeToken.UINT);
+    public void outATypeTokenFieldAccess(ATypeTokenFieldAccess fieldAccess) {
         try {
-            PQualifiedName qualifiedName = arrayAccess.getArrayName();
-            TypeToken type;
-            String fieldName;
-            if (qualifiedName instanceof AExpressionQualifiedName) {
-                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                type = types.get(expressionName.getTarget());
-                fieldName = expressionName.getName().getText();
-            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
-                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                type = TypeTokenUtil.fromNode(typeName.getTarget());
-                fieldName = typeName.getName().getText();
+            TypeToken enclosingType = TypeTokenUtil.fromNode(fieldAccess.getTarget());
+            if (enclosingType instanceof UserDefinedTypeToken) {
+                String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+                Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+                FieldSymbol symbol = scope.resolveField(fieldAccess.getFieldName().getText());
+                if (!symbol.getModifiers().contains(Modifier.STATIC)) {
+                    throw new SemanticException("cannot access an instance field statically");
+                }
+                types.put(fieldAccess, symbol.getType());
             } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (type instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
-                enforceArrayAccess(arrayAccess, fieldSymbol);
-            } else {
-                throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
+                throw new SemanticException(fieldAccess, "built-in types do not currently support any fields");
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    private void enforceArrayAccess(Node arrayAccess, TypedSymbol symbol) throws SemanticException {
-        TypeToken arrayType = symbol.getType();
+    @Override
+    public void outAArrayAccess(AArrayAccess arrayAccess) {
+        assertAssignableTo(arrayAccess.getIndex(), PrimitiveTypeToken.UINT);
+        TypeToken arrayType = types.get(arrayAccess.getArray());
         if (arrayType instanceof ArrayTypeToken) {
-            types.put(arrayAccess.parent(), ((ArrayTypeToken) arrayType).getElementType());
+            types.put(arrayAccess, ((ArrayTypeToken) arrayType).getElementType());
         } else {
-            throw new SemanticException(arrayAccess, "not an array");
-        }
-    }
-
-    @Override
-    public void outAExpressionQualifiedName(AExpressionQualifiedName qualifiedName) {
-        enforceQualifiedName(qualifiedName, types.get(qualifiedName.getTarget()), qualifiedName.getName().getText());
-    }
-
-    @Override
-    public void outATypeTokenQualifiedName(ATypeTokenQualifiedName qualifiedName) {
-        if (qualifiedName.getTarget() != null) {
-            enforceQualifiedName(qualifiedName, TypeTokenUtil.fromNode(qualifiedName.getTarget()), qualifiedName.getName().getText());
-        } else {
-            exceptionBuffer.add(new SemanticException(qualifiedName, "there are no fields in the global scope"));
-        }
-    }
-
-    private void enforceQualifiedName(PQualifiedName qualifiedName, TypeToken type, String fieldName) {
-        try {
-            if (type instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                Scope classScope = getScope(classSymbol.getDeclaration());
-                types.put(qualifiedName, classScope.resolveField(fieldName).getType());
-            } else {
-                throw new SemanticException(qualifiedName, "built-in types do not currently support any fields");
-            }
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            String message = String.format("expected array; found %s", arrayType);
+            exceptionBuffer.add(new SemanticException(arrayAccess, message));
         }
     }
 
@@ -804,8 +790,8 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
-    public void outAQualifiedNameAssignmentTarget(AQualifiedNameAssignmentTarget assignmentTarget) {
-        types.put(assignmentTarget, types.get(assignmentTarget.getQualifiedName()));
+    public void outAFieldAccessAssignmentTarget(AFieldAccessAssignmentTarget assignmentTarget) {
+        types.put(assignmentTarget, types.get(assignmentTarget.getFieldAccess()));
     }
 
     @Override

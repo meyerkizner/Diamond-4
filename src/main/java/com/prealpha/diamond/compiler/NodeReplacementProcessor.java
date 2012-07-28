@@ -22,6 +22,8 @@ import com.prealpha.diamond.compiler.node.ABitwiseXorAssignment;
 import com.prealpha.diamond.compiler.node.ABitwiseXorExpression;
 import com.prealpha.diamond.compiler.node.ADivideAssignment;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
+import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIdentifierAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AInclude;
@@ -33,8 +35,6 @@ import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyAssignment;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
-import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
 import com.prealpha.diamond.compiler.node.AShiftRightAssignment;
@@ -45,9 +45,9 @@ import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.PArrayAccess;
 import com.prealpha.diamond.compiler.node.PAssignmentTarget;
+import com.prealpha.diamond.compiler.node.PFieldAccess;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
-import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 import com.prealpha.diamond.compiler.parser.Parser;
 import com.prealpha.diamond.compiler.parser.ParserException;
@@ -214,9 +214,9 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
         if (target instanceof AIdentifierAssignmentTarget) {
             TIdentifier identifier = ((AIdentifierAssignmentTarget) target).getIdentifier();
             return new AIdentifierPrimaryExpression((TIdentifier) identifier.clone());
-        } else if (target instanceof AQualifiedNameAssignmentTarget) {
-            PQualifiedName qualifiedName = ((AQualifiedNameAssignmentTarget) target).getQualifiedName();
-            return new AQualifiedNamePrimaryExpression((PQualifiedName) qualifiedName.clone());
+        } else if (target instanceof AFieldAccessAssignmentTarget) {
+            PFieldAccess qualifiedName = ((AFieldAccessAssignmentTarget) target).getFieldAccess();
+            return new AFieldAccessPrimaryExpression((PFieldAccess) qualifiedName.clone());
         } else if (target instanceof AArrayAccessAssignmentTarget) {
             PArrayAccess arrayAccess = ((AArrayAccessAssignmentTarget) target).getArrayAccess();
             return new AArrayAccessPrimaryExpression((PArrayAccess) arrayAccess.clone());

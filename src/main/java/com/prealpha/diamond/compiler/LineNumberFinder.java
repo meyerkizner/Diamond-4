@@ -9,6 +9,7 @@ package com.prealpha.diamond.compiler;
 import com.prealpha.diamond.compiler.analysis.AnalysisAdapter;
 import com.prealpha.diamond.compiler.node.AAddAssignment;
 import com.prealpha.diamond.compiler.node.AAddExpression;
+import com.prealpha.diamond.compiler.node.AArrayAccess;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AArrayTypeToken;
@@ -45,9 +46,12 @@ import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEmptyStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
-import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
+import com.prealpha.diamond.compiler.node.AExpressionFieldAccess;
+import com.prealpha.diamond.compiler.node.AExpressionFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
+import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AFieldClassStatement;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
@@ -82,10 +86,6 @@ import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrivateModifier;
 import com.prealpha.diamond.compiler.node.AProgram;
-import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
-import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
-import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
@@ -98,9 +98,9 @@ import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
-import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
+import com.prealpha.diamond.compiler.node.ATypeTokenFieldAccess;
+import com.prealpha.diamond.compiler.node.ATypeTokenFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUintTypeToken;
-import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
@@ -280,10 +280,6 @@ final class LineNumberFinder extends AnalysisAdapter {
         node.getIdentifier().apply(this);
     }
 
-    public void caseAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression node) {
-        node.getQualifiedName().apply(this);
-    }
-
     public void caseAThisPrimaryExpression(AThisPrimaryExpression node) {
     }
 
@@ -297,6 +293,10 @@ final class LineNumberFinder extends AnalysisAdapter {
 
     public void caseAConstructorInvocationPrimaryExpression(AConstructorInvocationPrimaryExpression node) {
         node.getConstructorInvocation().apply(this);
+    }
+
+    public void caseAFieldAccessPrimaryExpression(AFieldAccessPrimaryExpression node) {
+        node.getFieldAccess().apply(this);
     }
     
     public void caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression node) {
@@ -337,28 +337,28 @@ final class LineNumberFinder extends AnalysisAdapter {
         node.getFunctionName().apply(this);
     }
     
-    public void caseAQualifiedFunctionInvocation(AQualifiedFunctionInvocation node) {
-        node.getFunctionName().apply(this);
+    public void caseAExpressionFunctionInvocation(AExpressionFunctionInvocation node) {
+        node.getTarget().apply(this);
+    }
+
+    public void caseATypeTokenFunctionInvocation(ATypeTokenFunctionInvocation node) {
+        node.getTarget().apply(this);
     }
     
     public void caseAConstructorInvocation(AConstructorInvocation node) {
         node.getTarget().apply(this);
     }
-    
-    public void caseAUnqualifiedArrayAccess(AUnqualifiedArrayAccess node) {
-        node.getArrayName().apply(this);
-    }
-    
-    public void caseAQualifiedArrayAccess(AQualifiedArrayAccess node) {
-        node.getArrayName().apply(this);
-    }
-    
-    public void caseAExpressionQualifiedName(AExpressionQualifiedName node) {
+
+    public void caseAExpressionFieldAccess(AExpressionFieldAccess node) {
         node.getTarget().apply(this);
     }
-    
-    public void caseATypeTokenQualifiedName(ATypeTokenQualifiedName node) {
+
+    public void caseATypeTokenFieldAccess(ATypeTokenFieldAccess node) {
         node.getTarget().apply(this);
+    }
+
+    public void caseAArrayAccess(AArrayAccess node) {
+        node.getArray().apply(this);
     }
     
     public void caseAPrimaryExpression(APrimaryExpression node) {
@@ -517,8 +517,8 @@ final class LineNumberFinder extends AnalysisAdapter {
         node.getIdentifier().apply(this);
     }
     
-    public void caseAQualifiedNameAssignmentTarget(AQualifiedNameAssignmentTarget node) {
-        node.getQualifiedName().apply(this);
+    public void caseAFieldAccessAssignmentTarget(AFieldAccessAssignmentTarget node) {
+        node.getFieldAccess().apply(this);
     }
     
     public void caseAArrayAccessAssignmentTarget(AArrayAccessAssignmentTarget node) {

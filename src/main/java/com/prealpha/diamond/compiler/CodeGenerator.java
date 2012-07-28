@@ -17,6 +17,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.io.CharStreams;
 import com.prealpha.diamond.compiler.node.AAddExpression;
+import com.prealpha.diamond.compiler.node.AArrayAccess;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AArrayAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AAssignment;
@@ -48,9 +49,12 @@ import com.prealpha.diamond.compiler.node.ADeleteStatement;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
 import com.prealpha.diamond.compiler.node.AEqualExpression;
-import com.prealpha.diamond.compiler.node.AExpressionQualifiedName;
+import com.prealpha.diamond.compiler.node.AExpressionFieldAccess;
+import com.prealpha.diamond.compiler.node.AExpressionFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AExpressionStatement;
 import com.prealpha.diamond.compiler.node.AFalseLiteral;
+import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
+import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AFieldClassStatement;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AForStatement;
@@ -76,10 +80,6 @@ import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
-import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
-import com.prealpha.diamond.compiler.node.AQualifiedFunctionInvocation;
-import com.prealpha.diamond.compiler.node.AQualifiedNameAssignmentTarget;
-import com.prealpha.diamond.compiler.node.AQualifiedNamePrimaryExpression;
 import com.prealpha.diamond.compiler.node.AReturnStatement;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
@@ -88,8 +88,8 @@ import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.ASwitchStatement;
 import com.prealpha.diamond.compiler.node.AThisPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ATrueLiteral;
-import com.prealpha.diamond.compiler.node.ATypeTokenQualifiedName;
-import com.prealpha.diamond.compiler.node.AUnqualifiedArrayAccess;
+import com.prealpha.diamond.compiler.node.ATypeTokenFieldAccess;
+import com.prealpha.diamond.compiler.node.ATypeTokenFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
@@ -102,8 +102,6 @@ import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
-import com.prealpha.diamond.compiler.node.PPrimaryExpression;
-import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.TIdentifier;
@@ -120,6 +118,9 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
+/*
+ * TODO: there's lots of code duplication with TypeEnforcer, not sure how to fix this
+ */
 final class CodeGenerator extends ScopeAwareWalker {
     /**
      * A list of exceptions that have occurred during this phase. The inherited method signatures prevent us from
@@ -811,11 +812,6 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void caseAQualifiedNamePrimaryExpression(AQualifiedNamePrimaryExpression primaryExpression) {
-        inline(primaryExpression.getQualifiedName());
-    }
-
-    @Override
     public void caseAThisPrimaryExpression(AThisPrimaryExpression primaryExpression) {
         assert thisSymbol != null;
         expressionResult = thisSymbol;
@@ -839,6 +835,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseACastInvocationPrimaryExpression(ACastInvocationPrimaryExpression primaryExpression) {
         inline(primaryExpression.getCastInvocation());
+    }
+
+    @Override
+    public void caseAFieldAccessPrimaryExpression(AFieldAccessPrimaryExpression primaryExpression) {
+        inline(primaryExpression.getFieldAccess());
     }
 
     @Override
@@ -877,9 +878,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         expressionResult = null;
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation)
-     */
     @Override
     public void caseAUnqualifiedFunctionInvocation(AUnqualifiedFunctionInvocation invocation) {
         try {
@@ -894,50 +892,39 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAQualifiedFunctionInvocation(AQualifiedFunctionInvocation)
-     */
     @Override
-    public void caseAQualifiedFunctionInvocation(AQualifiedFunctionInvocation invocation) {
+    public void caseAExpressionFunctionInvocation(AExpressionFunctionInvocation invocation) {
         try {
-            PQualifiedName qualifiedName = invocation.getFunctionName();
-            TypeToken type;
-            String functionName;
-            if (qualifiedName instanceof AExpressionQualifiedName) {
-                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                PPrimaryExpression expression = expressionName.getTarget();
-                type = types.get(expression);
-                functionName = expressionName.getName().getText();
-                inline(expression);
-            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
-                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                type = (typeName.getTarget() == null ? null : TypeTokenUtil.fromNode(typeName.getTarget()));
-                functionName = typeName.getName().getText();
-            } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (type == null || type instanceof UserDefinedTypeToken) {
-                Scope scope;
-                if (type != null) {
-                    ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                    scope = getScope(classSymbol.getDeclaration());
-                } else {
-                    scope = getRootScope();
-                }
-                List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
-                FunctionSymbol symbol = scope.resolveFunction(functionName, parameterTypes);
-                evaluateParametrizedInvocation(symbol, invocation.getParameters());
-            } else {
-                throw new SemanticException("built-in types do not currently support any functions");
-            }
+            TypeToken enclosingType = types.get(invocation.getTarget());
+            String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+            Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            FunctionSymbol symbol = scope.resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            evaluateParametrizedInvocation(symbol, invocation.getParameters());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAConstructorInvocation(AConstructorInvocation)
-     */
+    @Override
+    public void caseATypeTokenFunctionInvocation(ATypeTokenFunctionInvocation invocation) {
+        try {
+            Scope scope;
+            if (invocation.getTarget() != null) {
+                TypeToken enclosingType = types.get(invocation.getTarget());
+                String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+                scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+            } else {
+                scope = getScope();
+            }
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
+            FunctionSymbol symbol = scope.resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            evaluateParametrizedInvocation(symbol, invocation.getParameters());
+        } catch (SemanticException sx) {
+            exceptionBuffer.add(sx);
+        }
+    }
+
     @Override
     public void caseAConstructorInvocation(AConstructorInvocation invocation) {
         try {
@@ -961,9 +948,6 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
     }
 
-    /*
-    * TODO: duplicates TypeEnforcer.outACastInvocation(ACastInvocation)
-    */
     @Override
     public void caseACastInvocation(ACastInvocation invocation) {
         try {
@@ -1042,112 +1026,46 @@ final class CodeGenerator extends ScopeAwareWalker {
         expressionResult = null;
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAUnqualifiedArrayAccess(AUnqualifiedArrayAccess)
-     */
     @Override
-    public void caseAUnqualifiedArrayAccess(AUnqualifiedArrayAccess arrayAccess) {
+    public void caseAExpressionFieldAccess(AExpressionFieldAccess fieldAccess) {
         try {
-            try {
-                expressionResult = getScope().resolveLocal(arrayAccess.getArrayName().getText());
-                assert stack.contains(expressionResult);
-                evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
-            } catch (SemanticException sx) {
-                expressionResult = getScope().resolveField(arrayAccess.getArrayName().getText());
-                assert stack.contains(thisSymbol);
-                write("SET A " + lookup(thisSymbol));
-                evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
-            }
+            TypeToken enclosingType = types.get(fieldAccess.getTarget());
+            String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+            Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+            FieldSymbol symbol = scope.resolveField(fieldAccess.getFieldName().getText());
+
+            inline(fieldAccess.getTarget());
+            requireValue(enclosingType);
+            expressionResult = symbol;
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    /*
-     * TODO: duplicates TypeEnforcer.outAQualifiedArrayAccess(AQualifiedArrayAccess)
-     */
     @Override
-    public void caseAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
+    public void caseATypeTokenFieldAccess(ATypeTokenFieldAccess fieldAccess) {
         try {
-            PQualifiedName qualifiedName = arrayAccess.getArrayName();
-            TypeToken type;
-            String fieldName;
-            if (qualifiedName instanceof AExpressionQualifiedName) {
-                AExpressionQualifiedName expressionName = (AExpressionQualifiedName) qualifiedName;
-                PPrimaryExpression expression = expressionName.getTarget();
-                type = types.get(expression);
-                fieldName = expressionName.getName().getText();
-                inline(expression); // so that expressionResult is the object
-            } else if (qualifiedName instanceof ATypeTokenQualifiedName) {
-                ATypeTokenQualifiedName typeName = (ATypeTokenQualifiedName) qualifiedName;
-                type = TypeTokenUtil.fromNode(typeName.getTarget());
-                fieldName = typeName.getName().getText();
-            } else {
-                throw new SemanticException(qualifiedName, "unknown qualified name flavor");
-            }
-            if (type instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
-                write("SET A " + lookup(expressionResult));
-                expressionResult = fieldSymbol;
-                evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
-            } else {
-                throw new SemanticException(arrayAccess, "built-in types do not currently support any fields");
-            }
+            TypeToken enclosingType = TypeTokenUtil.fromNode(fieldAccess.getTarget());
+            String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
+            Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
+            expressionResult = scope.resolveField(fieldAccess.getFieldName().getText());
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
         }
     }
 
-    /*
-     * The array should be the expressionResult from the invoking context. Note that the value stored in the array is
-     * not actually copied to the registers. This is done in
-     * caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression) so that this method may be re-used in evaluating
-     * assignments.
-     */
-    private void evaluateArrayAccess(PArrayAccess arrayAccess, PExpression index) {
-        TypeToken elementType = ((ArrayTypeToken) types.get(arrayAccess)).getElementType();
-
-        // since we need to evaluate the index expression, push the array
-        requireStack(types.get(arrayAccess));
+    @Override
+    public void caseAArrayAccess(AArrayAccess arrayAccess) {
+        inline(arrayAccess.getArray());
+        requireStack(types.get(arrayAccess.getArray()));
         TypedSymbol array = expressionResult;
 
-        inline(index);
-        requireValue(types.get(index));
+        inline(arrayAccess.getIndex());
+        requireValue(types.get(arrayAccess.getIndex()));
+
         write("ADD A " + lookup(array));
-        expressionResult = new ArrayElementPlaceholder(elementType);
-    }
-
-    @Override
-    public void caseAExpressionQualifiedName(AExpressionQualifiedName qualifiedName) {
-        inline(qualifiedName.getTarget()); // so that the expressionResult is the object
-        evaluateQualifiedName(qualifiedName, types.get(qualifiedName.getTarget()), qualifiedName.getName().getText());
-    }
-
-    @Override
-    public void caseATypeTokenQualifiedName(ATypeTokenQualifiedName qualifiedName) {
-        if (qualifiedName.getTarget() != null) {
-            evaluateQualifiedName(qualifiedName, TypeTokenUtil.fromNode(qualifiedName.getTarget()), qualifiedName.getName().getText());
-        } else {
-            exceptionBuffer.add(new SemanticException(qualifiedName, "there are no fields in the global scope"));
-        }
-    }
-
-    private void evaluateQualifiedName(PQualifiedName qualifiedName, TypeToken type, String fieldName) {
-        try {
-            if (type instanceof UserDefinedTypeToken) {
-                ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
-                Scope classScope = getScope(classSymbol.getDeclaration());
-                FieldSymbol symbol = classScope.resolveField(fieldName);
-                write("SET A " + lookup(expressionResult));
-                expressionResult = symbol;
-            } else {
-                throw new SemanticException(qualifiedName, "built-in types do not currently support any fields");
-            }
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        write("SET A [A]");
+        expressionResult = null;
     }
 
     @Override
@@ -1551,8 +1469,8 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
-    public void caseAQualifiedNameAssignmentTarget(AQualifiedNameAssignmentTarget assignmentTarget) {
-        inline(assignmentTarget.getQualifiedName());
+    public void caseAFieldAccessAssignmentTarget(AFieldAccessAssignmentTarget assignmentTarget) {
+        inline(assignmentTarget.getFieldAccess());
     }
 
     @Override
