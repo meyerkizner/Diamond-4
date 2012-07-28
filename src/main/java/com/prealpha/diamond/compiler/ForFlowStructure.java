@@ -29,7 +29,7 @@ final class ForFlowStructure implements FlowStructure {
     public boolean onBreak() {
         Scope scope = codeGenerator.getScope();
         while (scope != enclosingScope) {
-            codeGenerator.reclaimScope();
+            codeGenerator.doReclaimScope(scope);
             scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(forStatement.getBody()));
@@ -40,7 +40,7 @@ final class ForFlowStructure implements FlowStructure {
     public boolean onContinue() {
         Scope scope = codeGenerator.getScope();
         while (scope != enclosingScope) {
-            codeGenerator.reclaimScope();
+            codeGenerator.doReclaimScope(scope);
             scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getStartLabel(forStatement.getUpdate()));

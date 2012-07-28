@@ -26,27 +26,18 @@ final class UserDefinedTypeToken implements TypeToken {
     }
 
     @Override
-    public boolean isNumeric() {
+    public boolean isIntegral() {
         return false;
     }
 
     @Override
-    public int getWidth() {
-        return 1;
+    public boolean isSigned() {
+        return false;
     }
 
     @Override
     public boolean isAssignableTo(TypeToken typeToken) {
         return equals(typeToken);
-    }
-
-    @Override
-    public TypeToken performBinaryOperation(TypeToken otherType) throws SemanticException {
-        if (equals(otherType)) {
-            return this;
-        } else {
-            throw new SemanticException(String.format("invalid binary operation for %s and %s", this, otherType));
-        }
     }
 
     @Override

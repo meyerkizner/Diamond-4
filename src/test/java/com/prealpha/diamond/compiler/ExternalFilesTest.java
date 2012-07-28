@@ -31,11 +31,9 @@ public final class ExternalFilesTest extends BasicMachineTest {
     }
 
     @Test
-    public void testEulerProblem1() throws Exception {
-        testFileInPackage("EulerProblem1.dmd");
-        // the answer is 233168
-        assertEquals(0x8ed0, getMem()[0xfffd]);
-        assertEquals(0x0003, getMem()[0xfffe]);
+    public void testEulerProblem19() throws Exception {
+        testFileInPackage("EulerProblem19.dmd");
+        assertEquals(171, getMem()[0xfffe]);
     }
 
     private void testFileInPackage(String fileName) throws Exception {

@@ -34,6 +34,7 @@ Helpers
 	hex_digit = ['0'..'9'] | ['a'..'f'] | ['A'..'F'];
 	octal_digit = ['0'..'7'];
 	binary_digit = '0' | '1';
+	integral_literal_suffix = 'u' | 'U';
 	
 	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\\';
 	string_character = [input_character - ['"' + '\']] | escape_sequence;
@@ -122,14 +123,12 @@ Tokens
 	instanceof = 'instanceof';
 	int = 'int';
 	interface = 'interface';
-	long = 'long';
 	native = 'native';
 	new = 'new';
 	private = 'private';
 	protected = 'protected';
 	raise = 'raise';
 	return = 'return';
-	short = 'short';
 	static = 'static';
 	super = 'super';
 	switch = 'switch';
@@ -138,18 +137,16 @@ Tokens
 	throws_token = 'throws';
 	try = 'try';
 	uint = 'uint';
-	ulong = 'ulong';
-	ushort = 'ushort';
 	virtual = 'virtual';
 	void = 'void';
 	while = 'while';
 	yield = 'yield';
 	
 	// literals
-	decimal_literal = '0' | non_zero_digit digit*;
-    hex_literal = '0' ('x' | 'X') hex_digit+;
-    octal_literal = '0' octal_digit+;
-    binary_literal = '0' ('b' | 'B') binary_digit+;
+	decimal_literal = '0' | non_zero_digit digit* integral_literal_suffix?;
+    hex_literal = '0' ('x' | 'X') hex_digit+ integral_literal_suffix?;
+    octal_literal = '0' octal_digit+ integral_literal_suffix?;
+    binary_literal = '0' ('b' | 'B') binary_digit+ integral_literal_suffix?;
 	string_literal = '"' string_character* '"';
 	true_literal = 'true';
 	false_literal = 'false';
@@ -204,10 +201,10 @@ Productions
 	
 	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi {-> New field_declaration([modifiers], type, name)};
 	
-	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], [block.statement])} |
-							{void} [modifiers]:modifier* void [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration.void([modifiers], name, [parameters.local_declaration], [block.statement])};
-	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], [block.statement])};
-	cast_declaration = [modifiers]:modifier* [return_type]:identifier cast l_par [parameter]:local_declaration r_par block {-> New cast_declaration([modifiers], return_type, parameter, [block.statement])};
+	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par statement {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], statement)} |
+							{void} [modifiers]:modifier* void [name]:identifier l_par [parameters]:formal_parameter_list? r_par statement {-> New function_declaration.void([modifiers], name, [parameters.local_declaration], statement)};
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par statement {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], statement)};
+	cast_declaration = [modifiers]:modifier* [return_type]:identifier cast l_par [parameter]:local_declaration r_par statement {-> New cast_declaration([modifiers], return_type, parameter, statement)};
 	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
 													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
 
@@ -351,12 +348,8 @@ Productions
 	expression = assignment_expression {-> assignment_expression.expression};
 	
 	type_token =    {boolean} boolean {-> New type_token.boolean()} |
-					{signed_short} short {-> New type_token.signed_short()} |
-					{unsigned_short} ushort {-> New type_token.unsigned_short()} |
-					{signed_int} int {-> New type_token.signed_int()} |
-					{unsigned_int} uint {-> New type_token.unsigned_int()} |
-					{signed_long} long {-> New type_token.signed_long()} |
-					{unsigned_long} ulong {-> New type_token.unsigned_long()} |
+					{int} int {-> New type_token.int()} |
+					{uint} uint {-> New type_token.uint()} |
 					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
 					{array} [element_type]:type_token bkt_pair {-> New type_token.array(element_type)};
 	modifier =  {private} private {-> New modifier.private()} |
@@ -393,10 +386,10 @@ Abstract Syntax Tree
 
 	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
-	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier [parameters]:local_declaration* [body]:statement* |
-							{void} [modifiers]:modifier* [name]:identifier [parameters]:local_declaration* [body]:statement*;
-	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement*;
-	cast_declaration = [modifiers]:modifier* [return_type]:identifier [parameter]:local_declaration [body]:statement*;
+	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier [parameters]:local_declaration* [body]:statement |
+							{void} [modifiers]:modifier* [name]:identifier [parameters]:local_declaration* [body]:statement;
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement;
+	cast_declaration = [modifiers]:modifier* [return_type]:identifier [parameter]:local_declaration [body]:statement;
 	
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
@@ -471,12 +464,8 @@ Abstract Syntax Tree
 						{array_access} array_access;
 
 	type_token =    {boolean} |
-					{signed_short} |
-					{unsigned_short} |
-					{signed_int} |
-					{unsigned_int} |
-					{signed_long} |
-					{unsigned_long} |
+					{int} |
+					{uint} |
 					{user_defined} identifier |
 					{array} [element_type]:type_token;
 	modifier =      {private} |

@@ -29,7 +29,7 @@ final class SwitchFlowStructure implements FlowStructure {
     public boolean onBreak() {
         Scope scope = codeGenerator.getScope();
         while (scope != enclosingScope) {
-            codeGenerator.reclaimScope();
+            codeGenerator.doReclaimScope(scope);
             scope = scope.getParent();
         }
         codeGenerator.write("SET PC " + codeGenerator.getEndLabel(switchStatement.getBody().descendingIterator().next()));

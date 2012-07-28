@@ -33,10 +33,9 @@ final class ParametrizedFlowStructure implements FlowStructure {
     public boolean onReturn() {
         Scope scope = codeGenerator.getScope();
         while (scope != enclosingScope) {
-            codeGenerator.reclaimScope();
+            codeGenerator.doReclaimScope(scope);
             scope = scope.getParent();
         }
-        codeGenerator.reclaimScope();
         codeGenerator.write("SET PC POP");
         return true;
     }

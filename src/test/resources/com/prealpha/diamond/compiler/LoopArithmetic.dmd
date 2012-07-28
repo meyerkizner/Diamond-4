@@ -1,7 +1,7 @@
 void main() {
 	// because it's completely OK to use loops to do arithmetic!
-	short val = 0;
-	for (short i = 0; i < 10; i += 1) {
+	int val = 0;
+	for (int i = 0; i < 10; i += 1) {
 	   val += 10;
 	}
 }

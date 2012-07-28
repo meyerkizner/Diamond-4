@@ -16,6 +16,7 @@ import com.prealpha.diamond.compiler.node.AAddExpression;
 import com.prealpha.diamond.compiler.node.AArrayAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AAssignment;
 import com.prealpha.diamond.compiler.node.AAssignmentExpression;
+import com.prealpha.diamond.compiler.node.ABinaryIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ABitwiseAndExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseComplementExpression;
 import com.prealpha.diamond.compiler.node.ABitwiseOrExpression;
@@ -31,6 +32,7 @@ import com.prealpha.diamond.compiler.node.AConditionalNotExpression;
 import com.prealpha.diamond.compiler.node.AConditionalOrExpression;
 import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AConstructorInvocation;
+import com.prealpha.diamond.compiler.node.ADecimalIntegralLiteral;
 import com.prealpha.diamond.compiler.node.ADefaultCaseGroup;
 import com.prealpha.diamond.compiler.node.ADivideExpression;
 import com.prealpha.diamond.compiler.node.ADoStatement;
@@ -41,6 +43,7 @@ import com.prealpha.diamond.compiler.node.AForStatement;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AGreaterOrEqualExpression;
 import com.prealpha.diamond.compiler.node.AGreaterThanExpression;
+import com.prealpha.diamond.compiler.node.AHexIntegralLiteral;
 import com.prealpha.diamond.compiler.node.AIdentifierAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
@@ -55,6 +58,7 @@ import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
+import com.prealpha.diamond.compiler.node.AOctalIntegralLiteral;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
 import com.prealpha.diamond.compiler.node.AQualifiedArrayAccess;
@@ -79,8 +83,6 @@ import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PCaseGroup;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
-import com.prealpha.diamond.compiler.node.PLiteral;
-import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
@@ -132,80 +134,67 @@ final class TypeEnforcer extends ScopeAwareWalker {
             if (exceptionBuffer.isEmpty()) {
                 throw new AssertionError("cannot type-check node which was not previously encountered");
             }
-        } else if (!(types.get(node) instanceof IntegralTypeToken)) {
+        } else if (!types.get(node).isIntegral()) {
             String message = String.format("expected node with type <integral>; found %s", types.get(node));
             exceptionBuffer.add(new SemanticException(node, message));
         }
     }
 
-    private void assertNumeric(Node node) {
-        if (!types.containsKey(node)) {
-            if (exceptionBuffer.isEmpty()) {
-                throw new AssertionError("cannot type-check node which was not previously encountered");
-            }
-        } else if (!types.get(node).isNumeric()) {
-            String message = String.format("expected node with type <numeric>; found %s", types.get(node));
-            exceptionBuffer.add(new SemanticException(node, message));
-        }
+    private TypeToken assertIntegralEqual(Node left, Node right) {
+        assertIntegral(left);
+        assertIntegral(right);
+        return assertEqual(left, right);
     }
 
-    private void assertNumericOrBoolean(Node node) {
+    private void assertPrimitive(Node node) {
         if (!types.containsKey(node)) {
             if (exceptionBuffer.isEmpty()) {
                 throw new AssertionError("cannot type-check node which was not previously encountered");
             }
-        } else if (!types.get(node).isNumeric()) {
+        } else if (types.get(node).isReference()) {
             String message = String.format("expected node with type <numeric, boolean>; found %s", types.get(node));
             exceptionBuffer.add(new SemanticException(node, message));
         }
     }
 
-    private TypeToken assertBinaryNumeric(Node left, Node right) {
-        assertNumeric(left);
-        assertNumeric(right);
-        try {
-            return types.get(left).performBinaryOperation(types.get(right));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            return null;
-        }
+    private TypeToken assertPrimitiveEqual(Node left, Node right) {
+        assertPrimitive(left);
+        assertPrimitive(right);
+        return assertEqual(left, right);
     }
 
-    private TypeToken assertBinaryNumericOrBoolean(Node left, Node right) {
-        assertNumericOrBoolean(left);
-        assertNumericOrBoolean(right);
-        try {
-            return types.get(left).performBinaryOperation(types.get(right));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            return null;
+    private TypeToken assertEqual(Node left, Node right) {
+        if (!types.get(left).equals(types.get(right))) {
+            String message = String.format("expected two equal types; found %s and %s", types.get(left), types.get(right));
+            exceptionBuffer.add(new SemanticException(left.parent(), message));
         }
+        return types.get(left);
     }
 
     @Override
     public void outAIfThenStatement(AIfThenStatement ifThenStatement) {
-        assertAssignableTo(ifThenStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(ifThenStatement.getCondition(), PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAIfThenElseStatement(AIfThenElseStatement ifThenElseStatement) {
-        assertAssignableTo(ifThenElseStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(ifThenElseStatement.getCondition(), PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAWhileStatement(AWhileStatement whileStatement) {
-        assertAssignableTo(whileStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(whileStatement.getCondition(), PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAForStatement(AForStatement forStatement) {
-        assertAssignableTo(forStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(forStatement.getCondition(), PrimitiveTypeToken.BOOLEAN);
         super.outAForStatement(forStatement);
     }
 
     @Override
     public void outADoStatement(ADoStatement doStatement) {
-        assertAssignableTo(doStatement.getCondition(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(doStatement.getCondition(), PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
@@ -231,7 +220,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
                 assertAssignableTo(literal, types.get(switchStatement.getValue()));
                 try {
-                    BigInteger value = IntegralTypeToken.parseLiteral(literal);
+                    BigInteger value = TypeTokenUtil.parseIntegralLiteral(literal);
                     if (alreadySeen.contains(value)) {
                         throw new SemanticException(caseGroup, "duplicate case label for " + value);
                     } else {
@@ -410,11 +399,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAIntegralLiteral(AIntegralLiteral literal) {
-        try {
-            types.put(literal, IntegralTypeToken.fromLiteral(literal.getIntegralLiteral()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        types.put(literal, types.get(literal.getIntegralLiteral()));
     }
 
     @Override
@@ -424,12 +409,32 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outATrueLiteral(ATrueLiteral literal) {
-        types.put(literal, BooleanTypeToken.INSTANCE);
+        types.put(literal, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAFalseLiteral(AFalseLiteral literal) {
-        types.put(literal, BooleanTypeToken.INSTANCE);
+        types.put(literal, PrimitiveTypeToken.BOOLEAN);
+    }
+
+    @Override
+    public void outADecimalIntegralLiteral(ADecimalIntegralLiteral literal) {
+        types.put(literal, TypeTokenUtil.fromIntegralLiteral(literal));
+    }
+
+    @Override
+    public void outAHexIntegralLiteral(AHexIntegralLiteral literal) {
+        types.put(literal, TypeTokenUtil.fromIntegralLiteral(literal));
+    }
+
+    @Override
+    public void outAOctalIntegralLiteral(AOctalIntegralLiteral literal) {
+        types.put(literal, TypeTokenUtil.fromIntegralLiteral(literal));
+    }
+
+    @Override
+    public void outABinaryIntegralLiteral(ABinaryIntegralLiteral literal) {
+        types.put(literal, TypeTokenUtil.fromIntegralLiteral(literal));
     }
 
     @Override
@@ -541,7 +546,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAUnqualifiedArrayAccess(AUnqualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
+        assertAssignableTo(arrayAccess.getIndex(), PrimitiveTypeToken.UINT);
         try {
             try {
                 LocalSymbol localSymbol = getScope().resolveLocal(arrayAccess.getArrayName().getText());
@@ -557,7 +562,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outAQualifiedArrayAccess(AQualifiedArrayAccess arrayAccess) {
-        assertAssignableTo(arrayAccess.getIndex(), IntegralTypeToken.UNSIGNED_SHORT);
+        assertAssignableTo(arrayAccess.getIndex(), PrimitiveTypeToken.UINT);
         try {
             PQualifiedName qualifiedName = arrayAccess.getArrayName();
             TypeToken type;
@@ -630,171 +635,137 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outANumericNegationExpression(ANumericNegationExpression expression) {
-        try {
-            assertNumeric(expression.getValue());
-
-            // handle the edge cases Long.MIN_VALUE, Integer.MIN_VALUE, Short.MIN_VALUE
-            IntegralTypeToken valueType = null;
-            if (expression.getValue() instanceof APrimaryExpression) {
-                PPrimaryExpression primaryExpression = ((APrimaryExpression) expression.getValue()).getPrimaryExpression();
-                if (primaryExpression instanceof ALiteralPrimaryExpression) {
-                    PLiteral literal = ((ALiteralPrimaryExpression) primaryExpression).getLiteral();
-                    if (literal instanceof AIntegralLiteral) {
-                        PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
-                        BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
-                        if (value.equals(BigInteger.valueOf(Long.MIN_VALUE).negate())) {
-                            valueType = IntegralTypeToken.SIGNED_LONG;
-                        } else if (value.equals(BigInteger.valueOf(Integer.MIN_VALUE).negate())) {
-                            valueType = IntegralTypeToken.SIGNED_INT;
-                        } else if (value.equals(BigInteger.valueOf(Short.MIN_VALUE).negate())) {
-                            valueType = IntegralTypeToken.SIGNED_SHORT;
-                        }
-                    }
-                }
-            }
-            if (valueType == null) {
-                valueType = (IntegralTypeToken) types.get(expression.getValue());
-            }
-
-            types.put(expression, valueType.promoteToSigned());
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        assertIntegral(expression.getValue());
+        types.put(expression, types.get(expression.getValue()));
     }
 
     @Override
     public void outAConditionalNotExpression(AConditionalNotExpression expression) {
-        assertAssignableTo(expression.getValue(), BooleanTypeToken.INSTANCE);
+        assertAssignableTo(expression.getValue(), PrimitiveTypeToken.BOOLEAN);
         types.put(expression, types.get(expression.getValue()));
     }
 
     @Override
     public void outABitwiseComplementExpression(ABitwiseComplementExpression expression) {
-        assertNumeric(expression.getValue());
+        assertIntegral(expression.getValue());
         types.put(expression, types.get(expression.getValue()));
     }
 
     @Override
     public void outAMultiplyExpression(AMultiplyExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertIntegralEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outADivideExpression(ADivideExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertIntegralEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outAModulusExpression(AModulusExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertIntegralEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outAAddExpression(AAddExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertIntegralEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outASubtractExpression(ASubtractExpression expression) {
-        types.put(expression, assertBinaryNumeric(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertIntegralEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outAShiftLeftExpression(AShiftLeftExpression expression) {
         assertIntegral(expression.getLeft());
-        assertAssignableTo(expression.getRight(), IntegralTypeToken.UNSIGNED_LONG);
+        assertAssignableTo(expression.getRight(), PrimitiveTypeToken.UINT);
         types.put(expression, types.get(expression.getLeft()));
     }
 
     @Override
     public void outAShiftRightExpression(AShiftRightExpression expression) {
         assertIntegral(expression.getLeft());
-        assertAssignableTo(expression.getRight(), IntegralTypeToken.UNSIGNED_LONG);
+        assertAssignableTo(expression.getRight(), PrimitiveTypeToken.UINT);
         types.put(expression, types.get(expression.getLeft()));
     }
 
     @Override
     public void outAUnsignedShiftRightExpression(AUnsignedShiftRightExpression expression) {
         assertIntegral(expression.getLeft());
-        assertAssignableTo(expression.getRight(), IntegralTypeToken.UNSIGNED_LONG);
+        assertAssignableTo(expression.getRight(), PrimitiveTypeToken.UINT);
         types.put(expression, types.get(expression.getLeft()));
     }
 
     @Override
     public void outALessThanExpression(ALessThanExpression expression) {
-        assertBinaryNumeric(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertIntegralEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAGreaterThanExpression(AGreaterThanExpression expression) {
-        assertBinaryNumeric(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertIntegralEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outALessOrEqualExpression(ALessOrEqualExpression expression) {
-        assertBinaryNumeric(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertIntegralEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAGreaterOrEqualExpression(AGreaterOrEqualExpression expression) {
-        assertBinaryNumeric(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertIntegralEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAEqualExpression(AEqualExpression expression) {
-        assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertPrimitiveEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outANotEqualExpression(ANotEqualExpression expression) {
-        assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight());
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertPrimitiveEqual(expression.getLeft(), expression.getRight());
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outABitwiseAndExpression(ABitwiseAndExpression expression) {
-        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertPrimitiveEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outABitwiseXorExpression(ABitwiseXorExpression expression) {
-        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertPrimitiveEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outABitwiseOrExpression(ABitwiseOrExpression expression) {
-        types.put(expression, assertBinaryNumericOrBoolean(expression.getLeft(), expression.getRight()));
+        types.put(expression, assertPrimitiveEqual(expression.getLeft(), expression.getRight()));
     }
 
     @Override
     public void outAConditionalAndExpression(AConditionalAndExpression expression) {
-        assertAssignableTo(expression.getLeft(), BooleanTypeToken.INSTANCE);
-        assertAssignableTo(expression.getRight(), BooleanTypeToken.INSTANCE);
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertAssignableTo(expression.getLeft(), PrimitiveTypeToken.BOOLEAN);
+        assertAssignableTo(expression.getRight(), PrimitiveTypeToken.BOOLEAN);
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAConditionalOrExpression(AConditionalOrExpression expression) {
-        assertAssignableTo(expression.getLeft(), BooleanTypeToken.INSTANCE);
-        assertAssignableTo(expression.getRight(), BooleanTypeToken.INSTANCE);
-        types.put(expression, BooleanTypeToken.INSTANCE);
+        assertAssignableTo(expression.getLeft(), PrimitiveTypeToken.BOOLEAN);
+        assertAssignableTo(expression.getRight(), PrimitiveTypeToken.BOOLEAN);
+        types.put(expression, PrimitiveTypeToken.BOOLEAN);
     }
 
     @Override
     public void outAConditionalExpression(AConditionalExpression expression) {
-        assertAssignableTo(expression.getCondition(), BooleanTypeToken.INSTANCE);
-        TypeToken trueType = types.get(expression.getIfTrue());
-        TypeToken falseType = types.get(expression.getIfFalse());
-        try {
-            types.put(expression, trueType.performBinaryOperation(falseType));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-        }
+        assertAssignableTo(expression.getCondition(), PrimitiveTypeToken.BOOLEAN);
+        types.put(expression, assertEqual(expression.getIfTrue(), expression.getIfFalse()));
     }
 
     @Override

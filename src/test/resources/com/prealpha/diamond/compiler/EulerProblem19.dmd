@@ -1,0 +1,75 @@
+int getMonthSundays(int doomsday, int month, boolean leap) {
+	int anchor = 0;
+	switch (month) {
+		case 1:
+			anchor = leap ? 4 : 3;
+			break;
+		case 2:
+			anchor = leap ? 29 : 28;
+			break;
+		case 3:
+			anchor = 7;
+			break;
+		case 5:
+			anchor = 9;
+			break;
+		case 7:
+			anchor = 11;
+			break;
+		case 9:
+			anchor = 5;
+			break;
+		case 11:
+			anchor = 7;
+			break;
+		default:
+			anchor = month;
+	}
+
+	if (doomsday - ((anchor - 1) % 7) == 0) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+int getYearSundays(int year) {
+	boolean leap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+
+	int century = year / 100;
+	int anchor = 0;
+	switch (century % 4) {
+		case 0:
+			anchor = 2;
+			break;
+		case 1:
+			anchor = 0;
+			break;
+		case 2:
+			anchor = 5;
+			break;
+		case 3:
+			anchor = 3;
+			break;
+	}
+
+	int y = year % 100;
+	int a = y / 12;
+	int b = y % 12;
+	int c = b / 4;
+	int d = a + b + c;
+	int doomsday = (anchor + d) % 7;
+
+	int sundays = 0;
+	for (int month = 1; month <= 12; month += 1) {
+		sundays += getMonthSundays(doomsday, month, leap);
+	}
+	return sundays;
+}
+
+void main() {
+	int sundays = 0;
+	for (int year = 1901; year <= 2000; year += 1) {
+		sundays += getYearSundays(year);
+	}
+}

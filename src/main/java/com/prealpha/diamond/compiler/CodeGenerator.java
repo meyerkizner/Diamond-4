@@ -100,7 +100,6 @@ import com.prealpha.diamond.compiler.node.PClassStatement;
 import com.prealpha.diamond.compiler.node.PExpression;
 import com.prealpha.diamond.compiler.node.PFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.PIntegralLiteral;
-import com.prealpha.diamond.compiler.node.PLiteral;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
 import com.prealpha.diamond.compiler.node.PQualifiedName;
@@ -108,7 +107,6 @@ import com.prealpha.diamond.compiler.node.PStatement;
 import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 
-import java.math.BigInteger;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -235,7 +233,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         List<String> toReturn = Lists.newArrayList();
         toReturn.add("JSR " + getStartLabel(mainMethod));
         toReturn.add("BRK");
-        toReturn.add("SUB PC 1");
+        toReturn.add("SUB PC 0x0001");
         toReturn.addAll(instructions.values());
         return toReturn;
     }
@@ -249,28 +247,24 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     private void reclaimScope(Scope scope) {
         for (LocalSymbol local : Lists.reverse(scope.getLocals())) {
-            reclaimLocal(local);
+            TypedSymbol popped = stack.pop();
+            assert (local.equals(popped));
         }
+        doReclaimScope(scope);
     }
 
-    void reclaimScope() {
-        for (LocalSymbol local : Lists.reverse(getScope().getLocals())) {
-            doReclaimLocal(local);
+    void doReclaimScope(Scope scope) {
+        if (scope.getLocals().size() == 1) {
+            write("SET EX POP");
+        } else if (scope.getLocals().size() > 0) {
+            write(String.format("ADD SP 0x%04x", scope.getLocals().size()));
         }
     }
 
     private void reclaimLocal(TypedSymbol local) {
         TypedSymbol popped = stack.pop();
         assert (local.equals(popped));
-        doReclaimLocal(local);
-    }
-
-    private void doReclaimLocal(TypedSymbol local) {
-        int width = local.getType().getWidth();
-        if (local instanceof TransientPlaceholder) {
-            width -= ((TransientPlaceholder) local).stackOffset;
-        }
-        write(String.format("ADD SP 0x%04x", width));
+        write("SET EX POP");
     }
 
     String getStartLabel(Node node) {
@@ -286,16 +280,10 @@ final class CodeGenerator extends ScopeAwareWalker {
     private int nextLabel = 0;
 
     private String getBaseLabel(Node node) {
-        LineNumberFinder finder = new LineNumberFinder();
-        node.apply(finder);
-        if (finder.hasLineNumber()) {
-            return String.format("%s_%s_%s", node.getClass().getSimpleName(), finder.getLineNumber(), finder.getColumnNumber());
-        } else {
-            if (!labels.containsKey(node)) {
-                labels.put(node, nextLabel++);
-            }
-            return String.format("%s_%s", node.getClass().getSimpleName(), labels.get(node));
+        if (!labels.containsKey(node)) {
+            labels.put(node, nextLabel++);
         }
+        return String.format("%s_%s", node.getClass().getSimpleName(), labels.get(node));
     }
 
     private void inline(Node subject) {
@@ -304,34 +292,26 @@ final class CodeGenerator extends ScopeAwareWalker {
         write(":" + getEndLabel(subject));
     }
 
-    private String lookup(TypedSymbol symbol, int wordOffset) {
-        checkArgument(symbol == null || wordOffset < symbol.getType().getWidth());
-        checkArgument(wordOffset >= 0);
+    private String lookup(TypedSymbol symbol) {
         if (symbol instanceof TransientPlaceholder && stack.peek() == symbol) {
-            return ((TransientPlaceholder) symbol).lookup(wordOffset);
+            return ((TransientPlaceholder) symbol).lookup();
         } else if (symbol instanceof LocalSymbol || symbol instanceof FunctionPlaceholder || symbol instanceof TransientPlaceholder) {
             assert stack.contains(symbol);
             int symbolOffset = 0;
             for (TypedSymbol stackSymbol : stack) {
                 if (symbol.equals(stackSymbol)) {
                     break;
-                } else if (stackSymbol instanceof TransientPlaceholder) {
-                    symbolOffset += stackSymbol.getType().getWidth() - ((TransientPlaceholder) stackSymbol).stackOffset;
                 } else {
-                    symbolOffset += stackSymbol.getType().getWidth();
+                    symbolOffset += 1;
                 }
             }
-            if (symbolOffset == 0 && wordOffset == 0) {
+            if (symbolOffset == 0) {
                 return "[SP]";
             } else {
-                return String.format("[SP+%d]", symbolOffset + wordOffset);
+                return String.format("[SP+%d]", symbolOffset);
             }
         } else if (symbol instanceof ArrayElementPlaceholder) {
-            if (wordOffset == 0) {
-                return "[A]";
-            } else {
-                return String.format("[A+%d]", wordOffset);
-            }
+            return "[A]";
         } else if (symbol instanceof FieldSymbol) {
             if (!symbol.getModifiers().contains(Modifier.STATIC)) {
                 // the object we need for this field is located in register A
@@ -341,152 +321,41 @@ final class CodeGenerator extends ScopeAwareWalker {
                 int fieldOffset = 0;
                 for (FieldSymbol field : allFields) {
                     if (field != symbol) {
-                        fieldOffset += field.getType().getWidth();
+                        fieldOffset += 1;
                     } else {
                         break;
                     }
                 }
-                fieldOffset += wordOffset;
                 if (fieldOffset == 0) {
                     return "[A]";
                 } else {
                     return String.format("[A+%d]", fieldOffset);
                 }
             } else {
-                // see #caseAFieldDeclaration(AFieldDeclaration)
-                return String.format("%d_%s", wordOffset, getBaseLabel(symbol.getDeclaration()));
+                return getStartLabel(symbol.getDeclaration());
             }
         } else {
-            // the expression result is a value, stored in registers A, B, C, and X (as needed)
+            // the expression result is a value, stored in register A
             assert symbol == null;
-            switch (wordOffset) {
-                case 0:
-                    return "A";
-                case 1:
-                    return "B";
-                case 2:
-                    return "C";
-                case 3:
-                    return "X";
-                default:
-                    throw new AssertionError();
-            }
-        }
-    }
-
-    private String lookupSafe(TypedSymbol symbol, int wordOffset) {
-        String lookup = lookup(symbol, wordOffset);
-        if (lookup.equals("POP")) {
-            ((TransientPlaceholder) symbol).stackOffset -= 1;
-            return "[SP]";
-        } else {
-            return lookup;
+            return "A";
         }
     }
 
     private void requireValue(TypeToken type) {
-        requireValue(type, type);
-    }
-
-    private void requireValue(TypeToken type, TypeToken promotedType) {
-        if (expressionResult != null || !type.equals(promotedType)) {
-            assert (expressionResult == null || expressionResult.getType().equals(type));
+        if (expressionResult != null) {
             checkArgument(!(expressionResult instanceof TransientPlaceholder));
-            int lastWord = type.getWidth() - 1;
-            boolean signed = (type instanceof IntegralTypeToken && ((IntegralTypeToken) type).isSigned());
-            switch (promotedType.getWidth()) {
-                case 4:
-                    if (type.getWidth() < 4) {
-                        if (signed) {
-                            write("SET X " + lookup(expressionResult, lastWord));
-                            write("ASR X 16");
-                            write("SET C " + lookup(expressionResult, lastWord));
-                            write("ASR C 16");
-                        } else {
-                            write("SET X 0x0000");
-                            write("SET C 0x0000");
-                        }
-                    } else {
-                        write("SET X " + lookup(expressionResult, 3));
-                        write("SET C " + lookup(expressionResult, 2));
-                    }
-                case 2:
-                    if (type.getWidth() < 2) {
-                        if (signed) {
-                            write("SET B " + lookup(expressionResult, lastWord));
-                            write("ASR B 16");
-                        } else {
-                            write("SET B 0x0000");
-                        }
-                    } else {
-                        write("SET B " + lookup(expressionResult, 1));
-                    }
-                case 1:
-                    write("SET A " + lookup(expressionResult, 0));
-                    break;
-                default:
-                    assert false;
-            }
+            write("SET A " + lookup(expressionResult));
             expressionResult = null;
         }
     }
 
     private void requireStack(TypeToken type) {
-        requireStack(type, type);
-    }
-
-    private void requireStack(TypeToken type, TypeToken promotedType) {
-        if ((expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder)
-                && type.equals(promotedType)) {
+        if (expressionResult instanceof LocalSymbol || expressionResult instanceof Placeholder) {
             assert stack.contains(expressionResult);
         } else {
-            checkArgument(!(expressionResult instanceof TransientPlaceholder));
-            int lastWord = type.getWidth() - 1;
-            boolean signed = (type instanceof IntegralTypeToken && ((IntegralTypeToken) type).isSigned());
-            TransientPlaceholder placeholder = new TransientPlaceholder(promotedType);
-            stack.push(placeholder);
-            placeholder.stackOffset = promotedType.getWidth();
-            switch (promotedType.getWidth()) {
-                case 4:
-                    if (type.getWidth() < 4) {
-                        if (signed) {
-                            write("SET PUSH " + lookup(expressionResult, lastWord));
-                            write("ASR [SP] 16");
-                            placeholder.stackOffset -= 1;
-                            write("SET PUSH " + lookup(expressionResult, lastWord));
-                            write("ASR [SP] 16");
-                            placeholder.stackOffset -= 1;
-                        } else {
-                            write("SET PUSH 0x0000");
-                            write("SET PUSH 0x0000");
-                            placeholder.stackOffset -= 2;
-                        }
-                    } else {
-                        write("SET PUSH " + lookup(expressionResult, 3));
-                        placeholder.stackOffset -= 1;
-                        write("SET PUSH " + lookup(expressionResult, 2));
-                        placeholder.stackOffset -= 1;
-                    }
-                case 2:
-                    if (type.getWidth() < 2) {
-                        if (signed) {
-                            write("SET PUSH " + lookup(expressionResult, lastWord));
-                            write("ASR [SP] 16");
-                        } else {
-                            write("SET PUSH 0x0000");
-                        }
-                    } else {
-                        write("SET PUSH " + lookup(expressionResult, 1));
-                    }
-                    placeholder.stackOffset -= 1;
-                case 1:
-                    write("SET PUSH " + lookup(expressionResult, 0));
-                    placeholder.stackOffset -= 1;
-                    break;
-                default:
-                    assert false;
-            }
-            expressionResult = placeholder;
+            write("SET PUSH " + lookup(expressionResult));
+            expressionResult = new TransientPlaceholder(type);
+            stack.push(expressionResult);
         }
     }
 
@@ -531,26 +400,15 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private final class TransientPlaceholder extends Placeholder {
-        private int stackOffset;
-
         public TransientPlaceholder(TypeToken type) {
             super(type);
-            stackOffset = 0;
         }
 
-        public String lookup(int wordOffset) {
-            if (wordOffset == stackOffset) {
-                stackOffset += 1;
-                if (stackOffset == getType().getWidth()) {
-                    TypedSymbol popped = stack.pop();
-                    assert (this == popped);
-                }
-                return "POP";
-            } else if (wordOffset > stackOffset) {
-                return String.format("[SP+%d]", wordOffset - stackOffset);
-            } else {
-                throw new IllegalArgumentException();
-            }
+        public String lookup() {
+            checkArgument(stack.contains(this));
+            TypedSymbol popped = stack.pop();
+            assert (this == popped);
+            return "POP";
         }
     }
 
@@ -585,7 +443,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     private void evaluateIfThenElse(Node statement, PExpression condition, PStatement thenBody, PStatement elseBody) {
         inline(condition);
 
-        write("IFN " + lookup(expressionResult, 0) + " 0x0000");
+        write("IFN " + lookup(expressionResult) + " 0x0000");
         write("SET PC " + getStartLabel(thenBody));
 
         if (elseBody != null) {
@@ -601,7 +459,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getCondition());
 
-        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
+        write("IFE " + lookup(expressionResult) + " 0x0000");
         write("SET PC " + getEndLabel(statement));
 
         inline(statement.getBody());
@@ -624,7 +482,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(statement.getCondition());
 
-        write("IFE " + lookup(expressionResult, 0) + " 0x0000");
+        write("IFE " + lookup(expressionResult) + " 0x0000");
         write("SET PC reclaim_" + getBaseLabel(statement));
 
         inline(statement.getBody());
@@ -642,7 +500,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         inline(statement.getBody());
 
         inline(statement.getCondition());
-        write("IFN " + lookup(expressionResult, 0) + " 0x0000");
+        write("IFN " + lookup(expressionResult) + " 0x0000");
         write("SET PC " + getStartLabel(statement));
 
         flowStructures.pop();
@@ -658,19 +516,8 @@ final class CodeGenerator extends ScopeAwareWalker {
         for (PCaseGroup caseGroup : statement.getBody()) {
             for (PIntegralLiteral literal : getCaseGroupValues(caseGroup)) {
                 try {
-                    long value = IntegralTypeToken.parseLiteral(literal).longValue();
-                    switch (types.get(statement.getValue()).getWidth()) {
-                        case 4:
-                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 3), (value & 0xffff000000000000L) >>> 48));
-                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 2), (value & 0x0000ffff00000000L) >>> 32));
-                        case 2:
-                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 1), (value & 0x00000000ffff0000L) >>> 16));
-                        case 1:
-                            write(String.format("IFE %s 0x%04x", lookup(expressionResult, 0), (value & 0x000000000000ffffL)));
-                            break;
-                        default:
-                            assert false; // there shouldn't be any other widths
-                    }
+                    short value = TypeTokenUtil.parseIntegralLiteral(literal).shortValue();
+                    write(String.format("IFE %s 0x%04x", lookup(expressionResult), value));
                     write("SET PC " + getStartLabel(caseGroup));
                 } catch (SemanticException sx) {
                     exceptionBuffer.add(sx);
@@ -818,10 +665,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             FieldSymbol symbol = getScope().resolveField(declaration.getName().getText());
             if (symbol.getModifiers().contains(Modifier.STATIC)) {
-                for (int i = 0; i < symbol.getType().getWidth(); i++) {
-                    write(String.format(":%d_%s", i, getBaseLabel(declaration)));
-                    write("DAT 0x0000");
-                }
+                write("DAT 0x0000");
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -855,7 +699,7 @@ final class CodeGenerator extends ScopeAwareWalker {
      * other locals declared in the scope. This requires us to reclaim each set of locals separately, reclaiming the
      * JSR pointer in between.
      */
-    private void evaluateParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters, List<PStatement> body) {
+    private void evaluateParametrizedDeclaration(Node declaration, String name, List<PLocalDeclaration> parameters, PStatement body) {
         assert stack.isEmpty();
         try {
             List<TypeToken> parameterTypes = Lists.transform(parameters, TypeTokenUtil.getDeclarationFunction());
@@ -869,9 +713,9 @@ final class CodeGenerator extends ScopeAwareWalker {
                 symbol = getScope().resolveFunction(name, parameterTypes);
             }
 
-            flowStructures.push(new ParametrizedFlowStructure(this));
-
             super.onEnterScope(declaration);
+
+            flowStructures.push(new ParametrizedFlowStructure(this));
 
             if ((!symbol.getModifiers().contains(Modifier.STATIC) || symbol instanceof ConstructorSymbol)
                     && symbol.getDeclaringClass() != null) {
@@ -883,12 +727,10 @@ final class CodeGenerator extends ScopeAwareWalker {
                 inline(parameterDeclaration);
             }
 
-            FunctionPlaceholder jsrPointer = new FunctionPlaceholder(IntegralTypeToken.UNSIGNED_SHORT);
+            FunctionPlaceholder jsrPointer = new FunctionPlaceholder(PrimitiveTypeToken.UINT);
             stack.push(jsrPointer);
 
-            for (PStatement enclosedStatement : body) {
-                inline(enclosedStatement);
-            }
+            inline(body);
 
             // TRY to put the last expression as the return value if we get to this point
             // we need to do this here because it could be a local that's about to fall out of scope
@@ -983,39 +825,16 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAArrayAccessPrimaryExpression(AArrayAccessPrimaryExpression primaryExpression) {
         inline(primaryExpression.getArrayAccess());
-
         // see the comment above evaluateArrayAccess(PArrayAccess, PExpression)
-        switch (types.get(primaryExpression).getWidth()) {
-            case 4:
-                write("SET X [A+3]");
-                write("SET C [A+2]");
-            case 2:
-                write("SET B [A+1]");
-            case 1:
-                write("SET A [A]"); // note that this has to be done last!
-                break;
-            default:
-                assert false; // there shouldn't be any other widths
-        }
+        write("SET A [A]");
         expressionResult = null;
     }
 
     @Override
     public void caseAIntegralLiteral(AIntegralLiteral literal) {
         try {
-            long value = IntegralTypeToken.parseLiteral(literal.getIntegralLiteral()).longValue();
-            switch (types.get(literal).getWidth()) {
-                case 4:
-                    write(String.format("SET X 0x%04x", (value & 0xffff000000000000L) >>> 48));
-                    write(String.format("SET C 0x%04x", (value & 0x0000ffff00000000L) >>> 32));
-                case 2:
-                    write(String.format("SET B 0x%04x", (value & 0x00000000ffff0000L) >>> 16));
-                case 1:
-                    write(String.format("SET A 0x%04x", (value & 0x000000000000ffffL)));
-                    break;
-                default:
-                    assert false; // there shouldn't be any other widths
-            }
+            short value = TypeTokenUtil.parseIntegralLiteral(literal.getIntegralLiteral()).shortValue();
+            write(String.format("SET A 0x%04x", value));
             expressionResult = null;
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -1137,7 +956,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                     scope = getScope(classSymbol.getDeclaration());
                 } else {
                     inline(invocation.getValue());
-                    requireValue(types.get(invocation.getValue()), types.get(invocation));
+                    requireValue(types.get(invocation.getValue()));
                     return;
                 }
             } else {
@@ -1148,7 +967,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 evaluateParametrizedInvocation(symbol, ImmutableList.of(invocation.getValue()));
             } catch (SemanticException sx) {
                 inline(invocation.getValue());
-                requireValue(types.get(invocation.getValue()), types.get(invocation));
+                requireValue(types.get(invocation.getValue()));
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
@@ -1165,7 +984,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 && symbol.getDeclaringClass() != null) {
             thisPlaceholder = new FunctionPlaceholder(new UserDefinedTypeToken(symbol.getDeclaringClass().getName()));
             if (!(symbol instanceof ConstructorSymbol)) {
-                write("SET PUSH " + lookup(expressionResult, 0));
+                write("SET PUSH " + lookup(expressionResult));
             } else {
                 throw new NoHeapException();
             }
@@ -1179,27 +998,10 @@ final class CodeGenerator extends ScopeAwareWalker {
         for (int i = 0; i < parameters.size(); i++) {
             PExpression parameter = parameters.get(i);
             TypeToken type = symbol.getParameters().get(i).getType();
-            int lastWord = types.get(parameter).getWidth() - 1;
-            boolean signed = (types.get(parameter) instanceof IntegralTypeToken
-                    && ((IntegralTypeToken) types.get(parameter)).isSigned());
-
             FunctionPlaceholder placeholder = new FunctionPlaceholder(type);
             parameterLocals.put(parameter, placeholder);
             inline(parameter);
-
-            for (int j = type.getWidth() - 1; j >= 0; j--) {
-                if (types.get(parameter).getWidth() < (j + 1)) {
-                    if (signed) {
-                        write("SET PUSH " + lookup(expressionResult, lastWord));
-                        write("ASR [SP] 16");
-                    } else {
-                        write("SET PUSH 0x0000");
-                    }
-                } else {
-                    write("SET PUSH " + lookup(expressionResult, j));
-                }
-            }
-
+            write("SET PUSH " + lookup(expressionResult));
             stack.push(placeholder);
         }
 
@@ -1230,7 +1032,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             } catch (SemanticException sx) {
                 expressionResult = getScope().resolveField(arrayAccess.getArrayName().getText());
                 assert stack.contains(thisSymbol);
-                write("SET A " + lookup(thisSymbol, 0));
+                write("SET A " + lookup(thisSymbol));
                 evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
             }
         } catch (SemanticException sx) {
@@ -1264,7 +1066,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol fieldSymbol = classScope.resolveField(fieldName);
-                write("SET A " + lookup(expressionResult, 0));
+                write("SET A " + lookup(expressionResult));
                 expressionResult = fieldSymbol;
                 evaluateArrayAccess(arrayAccess, arrayAccess.getIndex());
             } else {
@@ -1290,10 +1092,7 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(index);
         requireValue(types.get(index));
-        if (elementType.getWidth() > 1) {
-            write("MUL A " + elementType.getWidth());
-        }
-        write("ADD A " + lookup(array, 0));
+        write("ADD A " + lookup(array));
         expressionResult = new ArrayElementPlaceholder(elementType);
     }
 
@@ -1318,7 +1117,7 @@ final class CodeGenerator extends ScopeAwareWalker {
                 ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) type).getTypeName());
                 Scope classScope = getScope(classSymbol.getDeclaration());
                 FieldSymbol symbol = classScope.resolveField(fieldName);
-                write("SET A " + lookup(expressionResult, 0));
+                write("SET A " + lookup(expressionResult));
                 expressionResult = symbol;
             } else {
                 throw new SemanticException(qualifiedName, "built-in types do not currently support any fields");
@@ -1335,53 +1134,10 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseANumericNegationExpression(ANumericNegationExpression expression) {
-        // handle the edge cases Long.MIN_VALUE, Integer.MIN_VALUE, Short.MIN_VALUE
-        if (expression.getValue() instanceof APrimaryExpression) {
-            PPrimaryExpression primaryExpression = ((APrimaryExpression) expression.getValue()).getPrimaryExpression();
-            if (primaryExpression instanceof ALiteralPrimaryExpression) {
-                PLiteral literal = ((ALiteralPrimaryExpression) primaryExpression).getLiteral();
-                if (literal instanceof AIntegralLiteral) {
-                    try {
-                        PIntegralLiteral integralLiteral = ((AIntegralLiteral) literal).getIntegralLiteral();
-                        BigInteger value = IntegralTypeToken.parseLiteral(integralLiteral);
-                        if (value.equals(BigInteger.valueOf(Long.MIN_VALUE).negate())) {
-                            write("SET A 0x0000");
-                            write("SET B 0x0000");
-                            write("SET C 0x0000");
-                            write("SET X 0x8000");
-                            expressionResult = null;
-                            return;
-                        } else if (value.equals(BigInteger.valueOf(Integer.MIN_VALUE).negate())) {
-                            write("SET A 0x0000");
-                            write("SET B 0x8000");
-                            expressionResult = null;
-                            return;
-                        } else if (value.equals(BigInteger.valueOf(Short.MIN_VALUE).negate())) {
-                            write("SET A 0x8000");
-                            expressionResult = null;
-                            return;
-                        }
-                    } catch (SemanticException sx) {
-                        exceptionBuffer.add(sx);
-                    }
-                }
-            }
-        }
-
         inline(expression.getValue());
-        requireValue(types.get(expression.getValue()), types.get(expression)); // could be promoted to signed
+        requireValue(types.get(expression.getValue()));
         write("XOR A 0xffff");
         write("ADD A 0x0001");
-        if (types.get(expression).getWidth() >= 2) {
-            write("XOR B 0xffff");
-            write("ADD B EX");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("XOR C 0xffff");
-            write("ADD C EX");
-            write("XOR D 0xffff");
-            write("ADD X EX");
-        }
         expressionResult = null;
     }
 
@@ -1397,225 +1153,90 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseABitwiseComplementExpression(ABitwiseComplementExpression expression) {
         inline(expression.getValue());
         requireValue(types.get(expression));
-        switch (types.get(expression).getWidth()) {
-            case 4:
-                write("XOR X 0xffff");
-                write("XOR C 0xffff");
-            case 2:
-                write("XOR B 0xffff");
-            case 1:
-                write("XOR A 0xffff");
-                break;
-            default:
-                assert false; // there shouldn't be any other widths
-        }
+        write("XOR A 0xffff");
         expressionResult = null;
-    }
-
-    /*
-     * TODO: arithmetic needs a LOT of unit tests, and I'm sure these methods fail in some (or even most) cases
-     */
-
-    private void conditionallyNegate(TypeToken type, TypedSymbol symbol, String word, String label) {
-        assert symbol == null || type == symbol.getType();
-        assert symbol == null || ((IntegralTypeToken) symbol.getType()).isSigned();
-        assert symbol == null || (symbol.getType().getWidth() == 2 || symbol.getType().getWidth() == 4);
-
-        write(String.format("IFA %s 0xffff", word));
-        write(String.format("SET PC " + label));
-        for (int i = 0; i < type.getWidth(); i++) {
-            write(String.format("XOR %s 0xffff", lookupSafe(symbol, i)));
-            if (i == 0) {
-                write(String.format("ADD %s 0x0001", lookupSafe(symbol, i)));
-            } else {
-                write(String.format("ADD %s EX", lookupSafe(symbol, i)));
-            }
-        }
-        write(":" + label);
     }
 
     @Override
     public void caseAMultiplyExpression(AMultiplyExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        if (((IntegralTypeToken) types.get(expression)).isSigned()) {
-            if (types.get(expression).getWidth() == 1) {
-                write("MLI A " + lookup(left, 0));
-                expressionResult = null;
-            } else {
-                int lastWord = types.get(expression).getWidth() - 1;
-                write("SET J " + lookupSafe(left, lastWord));
-                write("XOR J " + lookupSafe(expressionResult, lastWord));
-                conditionallyNegate(types.get(expression), left, lookupSafe(left, lastWord), "negate_left_" + getBaseLabel(expression));
-                conditionallyNegate(types.get(expression), expressionResult, lookupSafe(expressionResult, lastWord), "negate_right_" + getBaseLabel(expression));
-                doLongMultiply(types.get(expression), left, expressionResult);
-            }
-        } else if (types.get(expression).getWidth() == 1) {
-            write("MUL A " + lookup(left, 0));
-            expressionResult = null;
+        if (types.get(expression).isSigned()) {
+            write("MLI A " + lookup(left));
         } else {
-            doLongMultiply(types.get(expression), left, expressionResult);
+            write("MUL A " + lookup(left));
         }
-        if (((IntegralTypeToken) types.get(expression)).isSigned() && types.get(expression).getWidth() > 1) {
-            conditionallyNegate(types.get(expression), expressionResult, "J", "negate_result_" + getBaseLabel(expression));
-        }
-        if (left instanceof TransientPlaceholder) {
-            doReclaimLocal(left);
-            if (stack.contains(left)) {
-                TypedSymbol popped = stack.pop();
-                assert left.equals(popped);
-            }
-        }
-    }
-
-    private void doLongMultiply(TypeToken resultType, TypedSymbol left, TypedSymbol right) {
-        final int width = resultType.getWidth();
-
-        TypedSymbol placeholder = new TransientPlaceholder(resultType);
-        stack.push(placeholder);
-        for (int i = 0; i < width; i++) {
-            write("SET PUSH 0x0000");
-        }
-        for (int j = 0; j < width; j++) {
-            write("SET Z 0x0000");
-            for (int i = 0; i < width; i++) {
-                if (i + j >= width) {
-                    continue;
-                }
-
-                write("SET Y " + lookupSafe(left, i));
-                write("MUL Y " + lookupSafe(right, j));
-                write("SET I EX");
-                write("ADD Y " + lookupSafe(placeholder, i + j));
-                write("ADD I EX");
-                write("ADD Y Z");
-                write("SET Z EX");
-                write("ADD Z I");
-                write(String.format("SET %s Y", lookupSafe(placeholder, i + j)));
-            }
-        }
-
-        write("SET A " + lookup(placeholder, 0));
-        if (width >= 2) {
-            write("SET B " + lookup(placeholder, 1));
-        }
-        if (width >= 4) {
-            write("SET C " + lookup(placeholder, 2));
-            write("SET X " + lookup(placeholder, 3));
-        }
-        assert !stack.contains(placeholder);
         expressionResult = null;
     }
 
     @Override
     public void caseADivideExpression(ADivideExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "DVI" : "DIV";
-        write(String.format("%s A %s", instruction, lookup(left, 0)));
-        if (types.get(expression).getWidth() >= 2) {
-            write("ADD B EX");
-            write(String.format("%s B %s", instruction, lookup(left, 1)));
+        write("SET B " + lookup(left));
+        if (types.get(expression).isSigned()) {
+            write("DVI B A");
+        } else {
+            write("DIV B A");
         }
-        if (types.get(expression).getWidth() >= 4) {
-            write("ADD C EX");
-            write(String.format("%s C %s", instruction, lookup(left, 2)));
-            write("ADD X EX");
-            write(String.format("%s X %s", instruction, lookup(left, 3)));
-        }
+        write("SET A B");
         expressionResult = null;
     }
 
     @Override
     public void caseAModulusExpression(AModulusExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) types.get(expression)).isSigned() ? "MDI" : "MOD";
-        write(String.format("%s A %s", instruction, lookup(left, 0)));
-        if (types.get(expression).getWidth() >= 2) {
-            write("ADD B EX");
-            write(String.format("%s B %s", instruction, lookup(left, 1)));
+        write("SET B " + lookup(left));
+        if (types.get(expression).isSigned()) {
+            write("MDI B A");
+        } else {
+            write("MOD B A");
         }
-        if (types.get(expression).getWidth() >= 4) {
-            write("ADD C EX");
-            write(String.format("%s C %s", instruction, lookup(left, 2)));
-            write("ADD X EX");
-            write(String.format("%s X %s", instruction, lookup(left, 3)));
-        }
+        write("SET A B");
         expressionResult = null;
     }
 
     @Override
     public void caseAAddExpression(AAddExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        write("ADD A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
-            write("ADX B " + lookup(left, 1));
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("ADX C " + lookup(left, 2));
-            write("ADX D " + lookup(left, 3));
-        }
+        write("ADD A " + lookup(left));
         expressionResult = null;
     }
 
     @Override
     public void caseASubtractExpression(ASubtractExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
-        // subtraction isn't commutative, so put our right value in some spare registers
-        write("SET Y A");
-        if (types.get(expression).getWidth() >= 2) {
-            write("SET Z B");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("SET I C");
-            write("SET J X");
-        }
+        requireValue(types.get(expression.getRight()));
 
-        // now put the stack stuff back in the registers
-        write("SET A " + lookup(left, 0));
-        if (types.get(expression.getLeft()).getWidth() >= 2) {
-            write("SET B " + lookup(left, 1));
-        }
-        if (types.get(expression.getLeft()).getWidth() >= 4) {
-            write("SET C " + lookup(left, 2));
-            write("SET X " + lookup(left, 3));
-        }
-
-        write("SUB A Y");
-        if (types.get(expression).getWidth() >= 2) {
-            write("SBX B Z");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("SBX C I");
-            write("SBX D J");
-        }
+        write("SET B " + lookup(left));
+        write("SUB B A");
+        write("SET A B");
         expressionResult = null;
     }
 
@@ -1627,36 +1248,10 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()));
-        // this is awkward, but put the right operand in register Y
-        // we can discard any other words because they don't matter anyway
-        write("SET Y A");
 
-        // now put the stack stuff back in the registers
-        write("SET A " + lookup(left, 0));
-        if (types.get(expression.getLeft()).getWidth() >= 2) {
-            write("SET B " + lookup(left, 1));
-        }
-        if (types.get(expression.getLeft()).getWidth() >= 4) {
-            write("SET C " + lookup(left, 2));
-            write("SET X " + lookup(left, 3));
-        }
-
-        // start on the high order words, so we don't have to waste instructions on storing EX in Z
-        if (types.get(expression).getWidth() >= 4) {
-            write("SHL X Y");
-            write("SHL C Y");
-            write("AND X EX");
-            write("SHL B Y");
-            write("AND C EX");
-            write("SHL A Y");
-            write("AND B EX");
-        } else if (types.get(expression).getWidth() >= 2) {
-            write("SHL B Y");
-            write("SHL A Y");
-            write("AND B EX");
-        } else {
-            write("SHL A Y");
-        }
+        write("SET B " + lookup(left));
+        write("SHL B A");
+        write("SET A B");
         expressionResult = null;
     }
 
@@ -1668,31 +1263,10 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()));
-        // this is awkward, but put the right operand in register Y
-        // we can discard any other words because they don't matter anyway
-        write("SET Y A");
 
-        // now put the stack stuff back in the registers
-        write("SET A " + lookup(left, 0));
-        if (types.get(expression.getLeft()).getWidth() >= 2) {
-            write("SET B " + lookup(left, 1));
-        }
-        if (types.get(expression.getLeft()).getWidth() >= 4) {
-            write("SET C " + lookup(left, 2));
-            write("SET X " + lookup(left, 3));
-        }
-
-        write("ASR A Y");
-        if (types.get(expression).getWidth() >= 2) {
-            write("ASR B Y");
-            write("AND A EX");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("ASR C Y");
-            write("AND B EX");
-            write("ASR D Y");
-            write("AND C EX");
-        }
+        write("SET B " + lookup(left));
+        write("ASR B A");
+        write("SET A B");
         expressionResult = null;
     }
 
@@ -1704,239 +1278,115 @@ final class CodeGenerator extends ScopeAwareWalker {
 
         inline(expression.getRight());
         requireValue(types.get(expression.getRight()));
-        // this is awkward, but put the right operand in register Y
-        // we can discard any other words because they don't matter anyway
-        write("SET Y A");
 
-        // now put the stack stuff back in the registers
-        write("SET A " + lookup(left, 0));
-        if (types.get(expression.getLeft()).getWidth() >= 2) {
-            write("SET B " + lookup(left, 1));
-        }
-        if (types.get(expression.getLeft()).getWidth() >= 4) {
-            write("SET C " + lookup(left, 2));
-            write("SET X " + lookup(left, 3));
-        }
-
-        write("SHR A Y");
-        if (types.get(expression).getWidth() >= 2) {
-            write("SHR B Y");
-            write("AND A EX");
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("SHR C Y");
-            write("AND B EX");
-            write("SHR D Y");
-            write("AND C EX");
-        }
+        write("SET B " + lookup(left));
+        write("SHR B A");
+        write("SET A B");
         expressionResult = null;
     }
 
     @Override
     public void caseALessThanExpression(ALessThanExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
-        switch (promotedType.getWidth()) {
-            case 4:
-                write(String.format("%s %s X", instruction, lookup(left, 3)));
-                write("SET PC true_" + getBaseLabel(expression));
-                write(String.format("%s %s C", instruction, lookup(left, 2)));
-                write("SET PC true_" + getBaseLabel(expression));
-            case 2:
-                write(String.format("%s %s B", instruction, lookup(left, 1)));
-                write("SET PC true_" + getBaseLabel(expression));
-            case 1:
-                write(String.format("%s %s A", instruction, lookup(left, 0)));
-                write("SET PC true_" + getBaseLabel(expression));
-                break;
-            default:
-                assert false;
+        if (types.get(expression.getLeft()).isSigned()) {
+            write(String.format("IFU %s A", lookup(left)));
+        } else {
+            write(String.format("IFL %s A", lookup(left)));
         }
+        write("SET PC true_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write("SET PC reclaim_" + getBaseLabel(expression));
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write(":reclaim_" + getBaseLabel(expression));
-        if (left instanceof TransientPlaceholder) {
-            reclaimLocal(left);
-        }
         expressionResult = null;
     }
 
     @Override
     public void caseAGreaterThanExpression(AGreaterThanExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
-        switch (promotedType.getWidth()) {
-            case 4:
-                write(String.format("%s %s X", instruction, lookup(left, 3)));
-                write("SET PC true_" + getBaseLabel(expression));
-                write(String.format("%s %s C", instruction, lookup(left, 2)));
-                write("SET PC true_" + getBaseLabel(expression));
-            case 2:
-                write(String.format("%s %s B", instruction, lookup(left, 1)));
-                write("SET PC true_" + getBaseLabel(expression));
-            case 1:
-                write(String.format("%s %s A", instruction, lookup(left, 0)));
-                write("SET PC true_" + getBaseLabel(expression));
-                break;
-            default:
-                assert false;
+        if (types.get(expression.getLeft()).isSigned()) {
+            write(String.format("IFA %s A", lookup(left)));
+        } else {
+            write(String.format("IFG %s A", lookup(left)));
         }
+        write("SET PC true_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write("SET PC reclaim_" + getBaseLabel(expression));
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write(":reclaim_" + getBaseLabel(expression));
-        if (left instanceof TransientPlaceholder) {
-            reclaimLocal(left);
-        }
         expressionResult = null;
     }
 
     @Override
     public void caseALessOrEqualExpression(ALessOrEqualExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFA" : "IFG";
-        switch (promotedType.getWidth()) {
-            case 4:
-                write(String.format("%s %s X", instruction, lookup(left, 3)));
-                write("SET PC false_" + getBaseLabel(expression));
-                write(String.format("%s %s C", instruction, lookup(left, 2)));
-                write("SET PC false_" + getBaseLabel(expression));
-            case 2:
-                write(String.format("%s %s B", instruction, lookup(left, 1)));
-                write("SET PC false_" + getBaseLabel(expression));
-            case 1:
-                write(String.format("%s %s A", instruction, lookup(left, 0)));
-                write("SET PC false_" + getBaseLabel(expression));
-                break;
-            default:
-                assert false;
+        if (types.get(expression.getLeft()).isSigned()) {
+            write(String.format("IFA %s A", lookup(left)));
+        } else {
+            write(String.format("IFG %s A", lookup(left)));
         }
+        write("SET PC false_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write("SET PC reclaim_" + getBaseLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write(":reclaim_" + getBaseLabel(expression));
-        if (left instanceof TransientPlaceholder) {
-            reclaimLocal(left);
-        }
         expressionResult = null;
     }
 
     @Override
     public void caseAGreaterOrEqualExpression(AGreaterOrEqualExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        String instruction = ((IntegralTypeToken) promotedType).isSigned() ? "IFU" : "IFL";
-        switch (promotedType.getWidth()) {
-            case 4:
-                write(String.format("%s %s X", instruction, lookup(left, 3)));
-                write("SET PC false_" + getBaseLabel(expression));
-                write(String.format("%s %s C", instruction, lookup(left, 2)));
-                write("SET PC false_" + getBaseLabel(expression));
-            case 2:
-                write(String.format("%s %s B", instruction, lookup(left, 1)));
-                write("SET PC false_" + getBaseLabel(expression));
-            case 1:
-                write(String.format("%s %s A", instruction, lookup(left, 0)));
-                write("SET PC false_" + getBaseLabel(expression));
-                break;
-            default:
-                assert false;
+        if (types.get(expression.getLeft()).isSigned()) {
+            write(String.format("IFU %s A", lookup(left)));
+        } else {
+            write(String.format("IFL %s A", lookup(left)));
         }
+        write("SET PC false_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write("SET PC reclaim_" + getBaseLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write(":reclaim_" + getBaseLabel(expression));
-        if (left instanceof TransientPlaceholder) {
-            reclaimLocal(left);
-        }
         expressionResult = null;
     }
 
     @Override
     public void caseAEqualExpression(AEqualExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        write("IFE A " + lookup(left, 0));
-        if (promotedType.getWidth() >= 2) {
-            write("IFE B " + lookup(left, 1));
-        }
-        if (promotedType.getWidth() >= 4) {
-            write("IFE C " + lookup(left, 2));
-            write("IFE X " + lookup(left, 3));
-        }
+        write("IFE A " + lookup(left));
         write("SET PC true_" + getBaseLabel(expression));
         write("SET A 0x0000");
         write("SET PC " + getEndLabel(expression));
@@ -1947,29 +1397,14 @@ final class CodeGenerator extends ScopeAwareWalker {
 
     @Override
     public void caseANotEqualExpression(ANotEqualExpression expression) {
-        TypeToken promotedType;
-        try {
-            promotedType = types.get(expression.getLeft()).performBinaryOperation(types.get(expression.getRight()));
-        } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
-            throw new AssertionError();
-        }
-
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), promotedType);
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), promotedType);
+        requireValue(types.get(expression.getRight()));
 
-        write("IFE A " + lookup(left, 0));
-        if (promotedType.getWidth() >= 2) {
-            write("IFE B " + lookup(left, 1));
-        }
-        if (promotedType.getWidth() >= 4) {
-            write("IFE C " + lookup(left, 2));
-            write("IFE X " + lookup(left, 3));
-        }
+        write("IFE A " + lookup(left));
         write("SET PC false_" + getBaseLabel(expression));
         write("SET A 0x0001");
         write("SET PC " + getEndLabel(expression));
@@ -1981,71 +1416,50 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseABitwiseAndExpression(ABitwiseAndExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        write("AND A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
-            write("AND B " + lookup(left, 1));
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("AND C " + lookup(left, 2));
-            write("AND X " + lookup(left, 3));
-        }
+        write("AND A " + lookup(left));
         expressionResult = null;
     }
 
     @Override
     public void caseABitwiseXorExpression(ABitwiseXorExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        write("XOR A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
-            write("XOR B " + lookup(left, 1));
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("XOR C " + lookup(left, 2));
-            write("XOR X " + lookup(left, 3));
-        }
+        write("XOR A " + lookup(left));
         expressionResult = null;
     }
 
     @Override
     public void caseABitwiseOrExpression(ABitwiseOrExpression expression) {
         inline(expression.getLeft());
-        requireStack(types.get(expression.getLeft()), types.get(expression));
+        requireStack(types.get(expression.getLeft()));
         TypedSymbol left = expressionResult;
 
         inline(expression.getRight());
-        requireValue(types.get(expression.getRight()), types.get(expression));
+        requireValue(types.get(expression.getRight()));
 
-        write("BOR A " + lookup(left, 0));
-        if (types.get(expression).getWidth() >= 2) {
-            write("BOR B " + lookup(left, 1));
-        }
-        if (types.get(expression).getWidth() >= 4) {
-            write("BOR C " + lookup(left, 2));
-            write("BOR X " + lookup(left, 3));
-        }
+        write("BOR A " + lookup(left));
         expressionResult = null;
     }
 
     @Override
     public void caseAConditionalAndExpression(AConditionalAndExpression expression) {
         inline(expression.getLeft());
-        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
+        write(String.format("IFE %s 0x0000", lookup(expressionResult)));
         write("SET PC false_" + getBaseLabel(expression));
 
         inline(expression.getRight());
-        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
+        write(String.format("IFE %s 0x0000", lookup(expressionResult)));
         write("SET PC false_" + getBaseLabel(expression));
 
         write("SET A 0x0001");
@@ -2058,11 +1472,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalOrExpression(AConditionalOrExpression expression) {
         inline(expression.getLeft());
-        write(String.format("IFE %s 0x0001", lookup(expressionResult, 0)));
+        write(String.format("IFE %s 0x0001", lookup(expressionResult)));
         write("SET PC true_" + getBaseLabel(expression));
 
         inline(expression.getRight());
-        write(String.format("IFE %s 0x0001", lookup(expressionResult, 0)));
+        write(String.format("IFE %s 0x0001", lookup(expressionResult)));
         write("SET PC true_" + getBaseLabel(expression));
 
         write("SET A 0x0000");
@@ -2075,12 +1489,13 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAConditionalExpression(AConditionalExpression expression) {
         inline(expression.getCondition());
-        write(String.format("IFE %s 0x0000", lookup(expressionResult, 0)));
+        write(String.format("IFE %s 0x0001", lookup(expressionResult)));
         write("SET PC true_" + getBaseLabel(expression));
 
         inline(expression.getIfFalse());
         write("SET PC " + getEndLabel(expression));
 
+        write(":true_" + getBaseLabel(expression));
         inline(expression.getIfTrue());
     }
 
@@ -2097,28 +1512,14 @@ final class CodeGenerator extends ScopeAwareWalker {
         TypedSymbol targetSymbol = expressionResult;
 
         inline(assignment.getValue());
-        for (int i = 0; i < types.get(assignment.getTarget()).getWidth(); i++) {
-            if (types.get(assignment.getValue()).getWidth() <= i) {
-                if (types.get(assignment.getValue()) instanceof IntegralTypeToken
-                        && ((IntegralTypeToken) types.get(assignment.getValue())).isSigned()) {
-                    // do sign extension if we're promoting the value from a signed type
-                    int lastWord = types.get(assignment.getValue()).getWidth() - 1;
-                    write(String.format("SET %s %s", lookup(targetSymbol, i), lookup(expressionResult, lastWord)));
-                    write(String.format("ASR %s 16", lookup(targetSymbol, i)));
-                } else {
-                    write(String.format("SET %s 0x0000", lookup(targetSymbol, i)));
-                }
-            } else {
-                write(String.format("SET %s %s", lookup(targetSymbol, i), lookup(expressionResult, i)));
-            }
-        }
+        write(String.format("SET %s %s", lookup(targetSymbol), lookup(expressionResult)));
         expressionResult = targetSymbol;
     }
 
     @Override
     public void caseALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
         inline(assignmentTarget.getLocalDeclaration());
-        write(String.format("SUB SP 0x%04x", expressionResult.getType().getWidth()));
+        write("SUB SP 0x0001");
     }
 
     @Override
@@ -2144,7 +1545,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             } catch (SemanticException sx) {
                 expressionResult = getScope().resolveField(identifier.getText());
                 assert stack.contains(thisSymbol);
-                write("SET A " + lookup(thisSymbol, 0));
+                write("SET A " + lookup(thisSymbol));
             }
         } catch (SemanticException sx) {
             exceptionBuffer.add(sx);
