@@ -400,6 +400,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
     }
 
     @Override
+    public void outALocalDeclaration(ALocalDeclaration localDeclaration) {
+        types.put(localDeclaration, TypeTokenUtil.fromNode(localDeclaration.getType()));
+    }
+
+    @Override
     public void outALiteralPrimaryExpression(ALiteralPrimaryExpression primaryExpression) {
         types.put(primaryExpression, types.get(primaryExpression.getLiteral()));
     }
@@ -834,8 +839,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void outALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
-        ALocalDeclaration localDeclaration = (ALocalDeclaration) assignmentTarget.getLocalDeclaration();
-        types.put(assignmentTarget, TypeTokenUtil.fromNode(localDeclaration.getType()));
+        types.put(assignmentTarget, types.get(assignmentTarget.getLocalDeclaration()));
     }
 
     @Override
