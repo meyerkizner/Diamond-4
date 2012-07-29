@@ -178,7 +178,7 @@ Productions
 				{if_then_else_statement} if_then_else_statement {-> if_then_else_statement.statement} |
 				{while_statement} while_statement {-> while_statement.statement} |
 				{for_statement} for_statement {-> for_statement.statement};
-	standalone_statement {-> statement} =   {block} block {-> New statement.block([block.statement])} |
+	standalone_statement {-> statement} =   {block} block {-> block.statement} |
 											{empty} empty_statement {-> empty_statement.statement} |
 											{expression} expression_statement {-> expression_statement.statement} |
 											{switch} switch_statement {-> switch_statement.statement} |
@@ -201,16 +201,16 @@ Productions
 	
 	field_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier semi {-> New field_declaration([modifiers], type, name)};
 	
-	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par statement {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], statement)} |
-							{void} [modifiers]:modifier* void [name]:identifier l_par [parameters]:formal_parameter_list? r_par statement {-> New function_declaration.void([modifiers], name, [parameters.local_declaration], statement)};
-	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par statement {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], statement)};
-	cast_declaration = [modifiers]:modifier* [return_type]:identifier cast l_par [parameter]:local_declaration r_par statement {-> New cast_declaration([modifiers], return_type, parameter, statement)};
+	function_declaration =  [modifiers]:modifier* [return_type]:type_token [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration([modifiers], return_type, name, [parameters.local_declaration], block.statement)} |
+							{void} [modifiers]:modifier* void [name]:identifier l_par [parameters]:formal_parameter_list? r_par block {-> New function_declaration.void([modifiers], name, [parameters.local_declaration], block.statement)};
+	constructor_declaration = [modifiers]:modifier* [return_type]:identifier new l_par [parameters]:formal_parameter_list? r_par block {-> New constructor_declaration([modifiers], return_type, [parameters.local_declaration], block.statement)};
+	cast_declaration = [modifiers]:modifier* [return_type]:identifier cast l_par [parameter]:local_declaration r_par block {-> New cast_declaration([modifiers], return_type, parameter, block.statement)};
 	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
 													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
 
 	include = include_token [file_name]:string_literal semi {-> New include(file_name)};
 	
-	block {-> statement*} = l_brc statement* r_brc {-> [statement]};
+	block {-> statement} = l_brc statement* r_brc {-> New statement.block([statement])};
 	
 	empty_statement {-> statement} = semi {-> New statement.empty()};
 	
