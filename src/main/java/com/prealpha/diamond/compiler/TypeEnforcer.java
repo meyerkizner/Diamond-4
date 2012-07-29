@@ -127,7 +127,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private void assertAssignableTo(Node node, TypeToken type) {
         if (!types.containsKey(node)) {
-            throw new AssertionError("cannot type-check node which was not previously encountered");
+            compiler.raise(new AssertionError("cannot type-check node which was not previously encountered"));
         } else if (!types.get(node).isAssignableTo(type)) {
             String message = String.format("expected node with type %s; found %s", type, types.get(node));
             compiler.raise(new SemanticException(node, message));
@@ -430,9 +430,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAFunctionInvocationPrimaryExpression(AFunctionInvocationPrimaryExpression primaryExpression) {
         if (types.containsKey(primaryExpression.getFunctionInvocation())) {
             types.put(primaryExpression, types.get(primaryExpression.getFunctionInvocation()));
-        } else {
-            assert primaryExpression.parent() instanceof APrimaryExpression;
-            assert primaryExpression.parent().parent() instanceof AExpressionStatement;
+        } else if (!(primaryExpression.parent() instanceof APrimaryExpression)) {
+            compiler.raise(new SemanticException(primaryExpression, "cannot invoke a void function except as a standalone statement"));
+        } else if (!(primaryExpression.parent().parent() instanceof AExpressionStatement)) {
+            compiler.raise(new SemanticException(primaryExpression, "cannot invoke a void function except as a standalone statement"));
         }
     }
 
@@ -533,7 +534,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         try {
             Scope scope;
             if (invocation.getTarget() != null) {
-                TypeToken enclosingType = types.get(invocation.getTarget());
+                TypeToken enclosingType = TypeTokenUtil.fromNode(invocation.getTarget());
                 if (enclosingType instanceof UserDefinedTypeToken) {
                     String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
                     scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
@@ -582,11 +583,11 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                     scope = getScope(classSymbol.getDeclaration());
                 } else if (scopeToken instanceof ArrayTypeToken) {
+                    types.put(invocation, scopeToken);
                     if (!parameterTypes.equals(ImmutableList.of(PrimitiveTypeToken.UINT))) {
                         String message = String.format("cannot resolve constructor symbol \"new%s\"", parameterTypes);
                         throw new SemanticException(invocation, message);
                     } else {
-                        types.put(invocation, scopeToken);
                         return;
                     }
                 } else {
@@ -685,8 +686,8 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAPrimaryExpression(APrimaryExpression primaryExpression) {
         if (types.containsKey(primaryExpression.getPrimaryExpression())) {
             types.put(primaryExpression, types.get(primaryExpression.getPrimaryExpression()));
-        } else {
-            assert primaryExpression.parent() instanceof AExpressionStatement;
+        } else if (!(primaryExpression.parent() instanceof AExpressionStatement)) {
+            compiler.raise(new SemanticException(primaryExpression, "cannot invoke a void function except as a standalone statement"));
         }
     }
 

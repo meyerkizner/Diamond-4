@@ -6,12 +6,12 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.BasicMachineTest;
+import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public final class NativeBlockTest extends BasicMachineTest {
+public final class NativeBlockTest extends MachineTest {
     @Test
     public void testNativeMainMethod() throws Exception {
         String diamond = "native void main() { `SET B 0x5555` }";

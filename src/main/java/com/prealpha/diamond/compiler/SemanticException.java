@@ -14,7 +14,7 @@ public final class SemanticException extends Exception {
     private final Node node;
 
     SemanticException(Node node, String message) {
-        super(message);
+        super(getLineNumberPrefix(node) + message);
         checkNotNull(node);
         this.node = node;
     }
@@ -26,5 +26,15 @@ public final class SemanticException extends Exception {
 
     public Node getNode() {
         return node;
+    }
+
+    private static String getLineNumberPrefix(Node node) {
+        LineNumberFinder lineNumberFinder = new LineNumberFinder();
+        node.apply(lineNumberFinder);
+        if (lineNumberFinder.hasLineNumber()) {
+            return String.format("[%d,%d] ", lineNumberFinder.getLineNumber(), lineNumberFinder.getColumnNumber());
+        } else {
+            return "";
+        }
     }
 }

@@ -35,11 +35,11 @@ public abstract class Compiler {
 
     public static Compiler getStandardCompiler() {
         return new Compiler() {
-            private final List<Exception> exceptions = Lists.newArrayList();
+            private final List<Throwable> exceptions = Lists.newArrayList();
 
             @Override
-            void raise(Exception exception) {
-                exceptions.add(exception);
+            void raise(Throwable throwable) {
+                exceptions.add(throwable);
             }
 
             @Override
@@ -47,8 +47,8 @@ public abstract class Compiler {
                 if (exceptions.size() == 1) {
                     throwAllowableType(exceptions.get(0));
                 } else if (exceptions.size() > 1) {
-                    for (Exception exception : exceptions) {
-                        exception.printStackTrace();
+                    for (Throwable throwable : exceptions) {
+                        throwable.printStackTrace();
                     }
                     throw new AssertionError(String.format("compilation halted: %d syntax error(s)", exceptions.size()));
                 }
@@ -58,12 +58,12 @@ public abstract class Compiler {
 
     public static Compiler getStrictCompiler() {
         return new Compiler() {
-            private Exception exception;
+            private Throwable exception;
 
             @Override
-            void raise(Exception exception) {
+            void raise(Throwable throwable) {
                 if (this.exception == null) {
-                    this.exception = exception;
+                    this.exception = throwable;
                 }
             }
 
@@ -163,22 +163,22 @@ public abstract class Compiler {
         return toReturn;
     }
 
-    abstract void raise(Exception exception);
+    abstract void raise(Throwable throwable);
 
     abstract void checkRaised() throws IOException, LexerException, ParserException, SemanticException;
 
-    private static void throwAllowableType(Exception exception)
+    private static void throwAllowableType(Throwable throwable)
             throws IOException, LexerException, ParserException, SemanticException {
-        if (exception instanceof IOException) {
-            throw (IOException) exception;
-        } else if (exception instanceof LexerException) {
-            throw (LexerException) exception;
-        } else if (exception instanceof ParserException) {
-            throw (ParserException) exception;
-        } else if (exception instanceof SemanticException) {
-            throw (SemanticException) exception;
+        if (throwable instanceof IOException) {
+            throw (IOException) throwable;
+        } else if (throwable instanceof LexerException) {
+            throw (LexerException) throwable;
+        } else if (throwable instanceof ParserException) {
+            throw (ParserException) throwable;
+        } else if (throwable instanceof SemanticException) {
+            throw (SemanticException) throwable;
         } else {
-            throw new AssertionError("unknown exception type", exception);
+            throw new AssertionError("unexpected exception type", throwable);
         }
     }
 

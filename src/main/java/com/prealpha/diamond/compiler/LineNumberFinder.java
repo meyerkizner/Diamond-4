@@ -66,7 +66,6 @@ import com.prealpha.diamond.compiler.node.AIdentifierAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIfThenElseStatement;
 import com.prealpha.diamond.compiler.node.AIfThenStatement;
-import com.prealpha.diamond.compiler.node.AInclude;
 import com.prealpha.diamond.compiler.node.AIncludeTopLevelStatement;
 import com.prealpha.diamond.compiler.node.AIntTypeToken;
 import com.prealpha.diamond.compiler.node.AIntegralLiteral;
@@ -91,6 +90,7 @@ import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
 import com.prealpha.diamond.compiler.node.AShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
+import com.prealpha.diamond.compiler.node.AStandardInclude;
 import com.prealpha.diamond.compiler.node.AStaticModifier;
 import com.prealpha.diamond.compiler.node.AStringLiteral;
 import com.prealpha.diamond.compiler.node.ASubtractAssignment;
@@ -105,6 +105,7 @@ import com.prealpha.diamond.compiler.node.AUnqualifiedFunctionInvocation;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
 import com.prealpha.diamond.compiler.node.AUserDefinedTypeToken;
+import com.prealpha.diamond.compiler.node.AUserInclude;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.AWhileStatement;
 import com.prealpha.diamond.compiler.node.Node;
@@ -268,8 +269,12 @@ final class LineNumberFinder extends AnalysisAdapter {
         }
     }
 
-    public void caseAInclude(AInclude node) {
+    public void caseAUserInclude(AUserInclude node) {
         node.getFileName().apply(this);
+    }
+
+    public void caseAStandardInclude(AStandardInclude node) {
+        node.getClassName().apply(this);
     }
 
     public void caseALiteralPrimaryExpression(ALiteralPrimaryExpression node) {

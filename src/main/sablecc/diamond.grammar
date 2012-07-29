@@ -144,7 +144,7 @@ Tokens
 	yield = 'yield';
 	
 	// literals
-	decimal_literal = '0' | non_zero_digit digit* integral_literal_suffix?;
+	decimal_literal = ('0' | non_zero_digit digit*) integral_literal_suffix?;
     hex_literal = '0' ('x' | 'X') hex_digit+ integral_literal_suffix?;
     octal_literal = '0' octal_digit+ integral_literal_suffix?;
     binary_literal = '0' ('b' | 'B') binary_digit+ integral_literal_suffix?;
@@ -212,7 +212,8 @@ Productions
 	formal_parameter_list {-> local_declaration*} = {simple} local_declaration {-> [local_declaration]} |
 													{compound} formal_parameter_list comma local_declaration {-> [formal_parameter_list.local_declaration, local_declaration]};
 
-	include = include_token [file_name]:string_literal semi {-> New include(file_name)};
+	include =   {user} include_token [file_name]:string_literal semi {-> New include.user(file_name)} |
+				{standard} include_token [class_name]:identifier semi {-> New include.standard(class_name)};
 	
 	block {-> statement} = l_brc statement* r_brc {-> New statement.block([statement])};
 	
@@ -398,7 +399,8 @@ Abstract Syntax Tree
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement;
 	cast_declaration = [modifiers]:modifier* [return_type]:identifier [parameter]:local_declaration [body]:statement;
 
-	include = [file_name]:string_literal;
+	include =   {user} [file_name]:string_literal |
+				{standard} [class_name]:identifier;
 
 	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 

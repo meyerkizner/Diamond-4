@@ -6,12 +6,12 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.BasicMachineTest;
+import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public final class LocalDeclarationTest extends BasicMachineTest {
+public final class LocalDeclarationTest extends MachineTest {
     @Test
     public void testUnassignedDeclaration() throws Exception {
         String diamond = "void main() { int testVar; testVar = 5; }";

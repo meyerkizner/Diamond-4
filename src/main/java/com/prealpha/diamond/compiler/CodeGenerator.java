@@ -123,7 +123,7 @@ import static com.google.common.base.Preconditions.*;
  */
 final class CodeGenerator extends ScopeAwareWalker {
     /**
-     * The {@code Compiler} we use to {@linkplain Compiler#raise(Exception) raise exceptions} and for information from
+     * The {@code Compiler} we use to {@linkplain Compiler#raise(Throwable) raise exceptions} and for information from
      * previous compilation phases.
      */
     private final Compiler compiler;
@@ -216,7 +216,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     /**
      * Constructs a new {@code CodeGenerator} as a phase for the given {@link Compiler}. The code generator will use
      * information from previous phases as exposed by the {@code Compiler}, and it will invoke its
-     * {@link Compiler#raise(Exception)} method when errors are encountered. The code generator should be used by
+     * {@link Compiler#raise(Throwable)} method when errors are encountered. The code generator should be used by
      * invoking {@link Node#apply(com.prealpha.diamond.compiler.node.Switch)} on the root of the syntax tree. The syntax
      * tree <i>must</i> be the same tree which was used by the compiler's previous phases, otherwise the result of the
      * code generation is undefined.
@@ -359,9 +359,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     private void inline(Node subject) {
-        write(":" + getStartLabel(subject));
-        subject.apply(this);
-        write(":" + getEndLabel(subject));
+        if (subject != null) {
+            write(":" + getStartLabel(subject));
+            subject.apply(this);
+            write(":" + getEndLabel(subject));
+        }
     }
 
     /**
@@ -479,6 +481,8 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
 
         public abstract String lookup();
+
+        public abstract String lookupAsB();
     }
 
     private final class TransientVariablePlaceholder extends TransientPlaceholder {
@@ -494,6 +498,11 @@ final class CodeGenerator extends ScopeAwareWalker {
             write("SET Y POP");
             return "[Y]";
         }
+
+        @Override
+        public String lookupAsB() {
+            return lookup();
+        }
     }
 
     private final class TransientValuePlaceholder extends TransientPlaceholder {
@@ -507,6 +516,15 @@ final class CodeGenerator extends ScopeAwareWalker {
             TypedSymbol popped = stack.pop();
             assert (this == popped);
             return "POP";
+        }
+
+        @Override
+        public String lookupAsB() {
+            checkArgument(stack.contains(this));
+            TypedSymbol popped = stack.pop();
+            assert (this == popped);
+            write("SET Y POP");
+            return "Y";
         }
     }
 
@@ -985,7 +1003,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             Scope scope;
             if (invocation.getTarget() != null) {
-                TypeToken enclosingType = types.get(invocation.getTarget());
+                TypeToken enclosingType = TypeTokenUtil.fromNode(invocation.getTarget());
                 String enclosingClassName = ((UserDefinedTypeToken) enclosingType).getTypeName();
                 scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
             } else {
@@ -1085,7 +1103,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         List<LocalSymbol> formalParameters = getScope(symbol.getDeclaration()).getLocals();
         for (int i = 0; i < parameters.size(); i++) {
             PExpression parameter = parameters.get(i);
-            assert (types.get(parameter) == formalParameters.get(i).getType());
+            assert (types.get(parameter).equals(formalParameters.get(i).getType()));
             inline(parameter);
             write("SET PUSH " + lookupExpression());
             stack.push(formalParameters.get(i));
@@ -1315,16 +1333,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         requireValue();
 
         if (types.get(expression.getLeft()).isSigned()) {
-            write(String.format("IFU %s A", left.lookup()));
+            write(String.format("IFU %s A", left.lookupAsB()));
         } else {
-            write(String.format("IFL %s A", left.lookup()));
+            write(String.format("IFL %s A", left.lookupAsB()));
         }
         write("SET PC true_" + getBaseLabel(expression));
         write("SET A 0x0000");
-        write("SET PC reclaim_" + getBaseLabel(expression));
+        write("SET PC " + getEndLabel(expression));
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
-        write(":reclaim_" + getBaseLabel(expression));
         expressionResult = null;
     }
 
@@ -1337,16 +1354,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         requireValue();
 
         if (types.get(expression.getLeft()).isSigned()) {
-            write(String.format("IFA %s A", left.lookup()));
+            write(String.format("IFA %s A", left.lookupAsB()));
         } else {
-            write(String.format("IFG %s A", left.lookup()));
+            write(String.format("IFG %s A", left.lookupAsB()));
         }
         write("SET PC true_" + getBaseLabel(expression));
         write("SET A 0x0000");
-        write("SET PC reclaim_" + getBaseLabel(expression));
+        write("SET PC " + getEndLabel(expression));
         write(":true_" + getBaseLabel(expression));
         write("SET A 0x0001");
-        write(":reclaim_" + getBaseLabel(expression));
         expressionResult = null;
     }
 
@@ -1359,16 +1375,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         requireValue();
 
         if (types.get(expression.getLeft()).isSigned()) {
-            write(String.format("IFA %s A", left.lookup()));
+            write(String.format("IFA %s A", left.lookupAsB()));
         } else {
-            write(String.format("IFG %s A", left.lookup()));
+            write(String.format("IFG %s A", left.lookupAsB()));
         }
         write("SET PC false_" + getBaseLabel(expression));
         write("SET A 0x0001");
-        write("SET PC reclaim_" + getBaseLabel(expression));
+        write("SET PC " + getEndLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
-        write(":reclaim_" + getBaseLabel(expression));
         expressionResult = null;
     }
 
@@ -1381,16 +1396,15 @@ final class CodeGenerator extends ScopeAwareWalker {
         requireValue();
 
         if (types.get(expression.getLeft()).isSigned()) {
-            write(String.format("IFU %s A", left.lookup()));
+            write(String.format("IFU %s A", left.lookupAsB()));
         } else {
-            write(String.format("IFL %s A", left.lookup()));
+            write(String.format("IFL %s A", left.lookupAsB()));
         }
         write("SET PC false_" + getBaseLabel(expression));
         write("SET A 0x0001");
-        write("SET PC reclaim_" + getBaseLabel(expression));
+        write("SET PC " + getEndLabel(expression));
         write(":false_" + getBaseLabel(expression));
         write("SET A 0x0000");
-        write(":reclaim_" + getBaseLabel(expression));
         expressionResult = null;
     }
 

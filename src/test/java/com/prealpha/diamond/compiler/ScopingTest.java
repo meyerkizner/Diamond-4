@@ -6,10 +6,10 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.BasicMachineTest;
+import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
-public final class ScopingTest extends BasicMachineTest {
+public final class ScopingTest extends MachineTest {
     @Test(expected = SemanticException.class)
     public void testNoDuplicateLocals() throws Exception {
         String diamond = "void main() { int local1 = 0; { int local1 = 0; } }";

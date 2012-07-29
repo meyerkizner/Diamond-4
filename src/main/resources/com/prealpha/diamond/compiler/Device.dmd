@@ -1,0 +1,40 @@
+class Device {
+	private uint deviceId;
+
+	private static Device new(uint deviceId) {
+		this.deviceId = deviceId;
+		return this;
+	}
+
+	native uint interrupt(uint behavior, uint value) {
+		`SET A [SP+2]`
+		`SET B [SP+1]`
+		`SET C [SP+3]`
+		`HWI [C]`
+		`SET A C`
+	}
+
+	static native Device locateDevice(uint[] manufacturer, uint[] hardwareId, uint version) {
+		`SET Z [SP+3]`
+		`SET I [SP+2]`
+		`SET J [SP+1]`
+
+		uint deviceId = 0xffffU;
+		uint i;
+		`HWN [SP]`
+		for (i -= 1U; (i + 1U) > 0U; i -= 1U) {
+			`HWQ [SP]`
+			`IFE A [I]`
+			`IFE B [I+1]`
+			`IFE C J`
+			`IFE X [Z]`
+			`IFE Y [Z+1]`
+			`SET PC Device_locateDevice_break`
+			continue;
+			`:Device_locateDevice_break`
+			deviceId = i;
+			break;
+		}
+		return new(deviceId);
+	}
+}

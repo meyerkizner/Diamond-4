@@ -6,7 +6,7 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.BasicMachineTest;
+import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
 import java.io.File;
@@ -16,7 +16,7 @@ import static org.junit.Assert.*;
 /*
  * TODO: right now, testing the values is implementation-sensitive
  */
-public final class ExternalFilesTest extends BasicMachineTest {
+public final class ExternalFilesTest extends MachineTest {
     @Test
     public void testHelloHeaplessWorld() throws Exception {
         testFileInPackage("HelloHeaplessWorld.dmd");
@@ -40,6 +40,12 @@ public final class ExternalFilesTest extends BasicMachineTest {
     public void testArithmeticObject() throws Exception {
         testFileInPackage("ArithmeticObject.dmd");
         assertEquals(10, getMem()[0xfffd]);
+    }
+
+    @Test
+    public void testPushPipeline() throws Exception {
+        testFileInPackage("PushPipeline.dmd");
+        assertEquals(42, (char) getPipeline().remove());
     }
 
     private void testFileInPackage(String fileName) throws Exception {

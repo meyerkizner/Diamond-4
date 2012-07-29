@@ -6,6 +6,8 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.lexer.Lexer;
 import com.prealpha.diamond.compiler.lexer.LexerException;
@@ -26,7 +28,6 @@ import com.prealpha.diamond.compiler.node.AFieldAccessAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AFieldAccessPrimaryExpression;
 import com.prealpha.diamond.compiler.node.AIdentifierAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AIdentifierPrimaryExpression;
-import com.prealpha.diamond.compiler.node.AInclude;
 import com.prealpha.diamond.compiler.node.AIncludeTopLevelStatement;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
@@ -35,19 +36,24 @@ import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyAssignment;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.APrimaryExpression;
+import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.AShiftLeftAssignment;
 import com.prealpha.diamond.compiler.node.AShiftLeftExpression;
 import com.prealpha.diamond.compiler.node.AShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AShiftRightExpression;
+import com.prealpha.diamond.compiler.node.AStandardInclude;
 import com.prealpha.diamond.compiler.node.ASubtractAssignment;
 import com.prealpha.diamond.compiler.node.ASubtractExpression;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightAssignment;
 import com.prealpha.diamond.compiler.node.AUnsignedShiftRightExpression;
+import com.prealpha.diamond.compiler.node.AUserInclude;
+import com.prealpha.diamond.compiler.node.Node;
 import com.prealpha.diamond.compiler.node.PArrayAccess;
 import com.prealpha.diamond.compiler.node.PAssignmentTarget;
 import com.prealpha.diamond.compiler.node.PFieldAccess;
 import com.prealpha.diamond.compiler.node.PLocalDeclaration;
 import com.prealpha.diamond.compiler.node.PPrimaryExpression;
+import com.prealpha.diamond.compiler.node.PTopLevelStatement;
 import com.prealpha.diamond.compiler.node.TIdentifier;
 import com.prealpha.diamond.compiler.parser.Parser;
 import com.prealpha.diamond.compiler.parser.ParserException;
@@ -55,7 +61,11 @@ import com.prealpha.diamond.compiler.parser.ParserException;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PushbackReader;
+import java.io.Reader;
+import java.util.List;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -68,16 +78,44 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
     }
 
     @Override
-    public void outAIncludeTopLevelStatement(AIncludeTopLevelStatement include) {
+    public void outAUserInclude(AUserInclude include) {
         try {
-            String fileName = ((AInclude) include.getInclude()).getFileName().getText();
+            String fileName = include.getFileName().getText();
+            fileName = fileName.substring(1, fileName.length() - 1); // strip the quotation marks
             File file = new File(compiler.getMainFile().getCanonicalPath() + fileName);
-            PushbackReader reader = new PushbackReader(new FileReader(file));
-            Parser parser = new Parser(new Lexer(reader));
-            include.replaceBy(parser.parse().getPProgram());
+            replaceInclude(include, new FileReader(file));
         } catch (IOException|LexerException|ParserException ex) {
             compiler.raise(ex);
         }
+    }
+
+    @Override
+    public void outAStandardInclude(AStandardInclude include) {
+        try {
+            String className = include.getClassName().getText();
+            InputStream stream = getClass().getResourceAsStream(className + ".dmd");
+            replaceInclude(include, new InputStreamReader(stream));
+        } catch (IOException|LexerException|ParserException ex) {
+            compiler.raise(ex);
+        }
+    }
+
+    private void replaceInclude(Node include, Reader reader) throws IOException, LexerException, ParserException {
+        Parser parser = new Parser(new Lexer(new PushbackReader(reader)));
+        List<PTopLevelStatement> includedStatements = ((AProgram) parser.parse().getPProgram()).getTopLevelStatement();
+        for (PTopLevelStatement statement : includedStatements) {
+            statement.apply(this);
+        }
+
+        AProgram mainProgram = (AProgram) include.parent().parent();
+        List<PTopLevelStatement> statements = Lists.newArrayList(mainProgram.getTopLevelStatement());
+        for (PTopLevelStatement statement : statements) {
+            new AProgram(ImmutableList.of(statement)); // set statement.parent() to a dummy value
+        }
+        int index = statements.indexOf((AIncludeTopLevelStatement) include.parent());
+        statements.remove(index);
+        statements.addAll(index, includedStatements);
+        mainProgram.setTopLevelStatement(statements);
     }
 
     @Override
