@@ -1006,6 +1006,13 @@ final class CodeGenerator extends ScopeAwareWalker {
                 if (scopeToken instanceof UserDefinedTypeToken) {
                     ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                     scope = getScope(classSymbol.getDeclaration());
+                } else if (scopeToken instanceof ArrayTypeToken) {
+                    assert (invocation.getParameters().size() == 1);
+                    inline(invocation.getParameters().get(0));
+                    write("SET X " + lookupExpression());
+                    write("JSR heapalloc");
+                    expressionResult = null;
+                    return;
                 } else {
                     throw new SemanticException(invocation, "built-in types do not currently support any constructors");
                 }

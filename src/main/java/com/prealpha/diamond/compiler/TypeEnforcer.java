@@ -8,6 +8,7 @@ package com.prealpha.diamond.compiler;
 
 import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -556,19 +557,27 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void outAConstructorInvocation(AConstructorInvocation invocation) {
         try {
+            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             Scope scope;
             if (invocation.getTarget() != null) {
                 TypeToken scopeToken = TypeTokenUtil.fromNode(invocation.getTarget());
                 if (scopeToken instanceof UserDefinedTypeToken) {
                     ClassSymbol classSymbol = getScope().resolveClass(((UserDefinedTypeToken) scopeToken).getTypeName());
                     scope = getScope(classSymbol.getDeclaration());
+                } else if (scopeToken instanceof ArrayTypeToken) {
+                    if (!parameterTypes.equals(ImmutableList.of(PrimitiveTypeToken.UINT))) {
+                        String message = String.format("cannot resolve constructor symbol \"new%s\"", parameterTypes);
+                        throw new SemanticException(invocation, message);
+                    } else {
+                        types.put(invocation, scopeToken);
+                        return;
+                    }
                 } else {
                     throw new SemanticException(invocation, "built-in types do not currently support any constructors");
                 }
             } else {
                 scope = getScope();
             }
-            List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
             types.put(invocation, symbol.getReturnType());
         } catch (SemanticException sx) {
