@@ -100,7 +100,7 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.*;
 
 final class TypeEnforcer extends ScopeAwareWalker {
-    private final List<Exception> exceptionBuffer;
+    private final Compiler compiler;
 
     private final Map<Node, TypeToken> types;
 
@@ -108,10 +108,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private Node currentFunction;
 
-    public TypeEnforcer(ScopeAwareWalker scopeSource, List<Exception> exceptionBuffer) {
-        super(scopeSource);
-        checkNotNull(exceptionBuffer);
-        this.exceptionBuffer = exceptionBuffer;
+    public TypeEnforcer(Compiler compiler) {
+        super(compiler.getScopeSource());
+        checkNotNull(compiler);
+        this.compiler = compiler;
         this.types = Maps.filterEntries(Maps.<Node, TypeToken>newHashMap(), new Predicate<Map.Entry<Node, TypeToken>>() {
             @Override
             public boolean apply(Map.Entry<Node, TypeToken> input) {
@@ -126,23 +126,19 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private void assertAssignableTo(Node node, TypeToken type) {
         if (!types.containsKey(node)) {
-            if (exceptionBuffer.isEmpty()) {
-                throw new AssertionError("cannot type-check node which was not previously encountered");
-            }
+            throw new AssertionError("cannot type-check node which was not previously encountered");
         } else if (!types.get(node).isAssignableTo(type)) {
             String message = String.format("expected node with type %s; found %s", type, types.get(node));
-            exceptionBuffer.add(new SemanticException(node, message));
+            compiler.raise(new SemanticException(node, message));
         }
     }
 
     private void assertIntegral(Node node) {
         if (!types.containsKey(node)) {
-            if (exceptionBuffer.isEmpty()) {
-                throw new AssertionError("cannot type-check node which was not previously encountered");
-            }
+            throw new AssertionError("cannot type-check node which was not previously encountered");
         } else if (!types.get(node).isIntegral()) {
             String message = String.format("expected node with type <integral>; found %s", types.get(node));
-            exceptionBuffer.add(new SemanticException(node, message));
+            compiler.raise(new SemanticException(node, message));
         }
     }
 
@@ -154,12 +150,10 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private void assertPrimitive(Node node) {
         if (!types.containsKey(node)) {
-            if (exceptionBuffer.isEmpty()) {
-                throw new AssertionError("cannot type-check node which was not previously encountered");
-            }
+            throw new AssertionError("cannot type-check node which was not previously encountered");
         } else if (types.get(node).isReference()) {
             String message = String.format("expected node with type <primitive>; found %s", types.get(node));
-            exceptionBuffer.add(new SemanticException(node, message));
+            compiler.raise(new SemanticException(node, message));
         }
     }
 
@@ -171,19 +165,17 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private void assertReference(Node node) {
         if (!types.containsKey(node)) {
-            if (exceptionBuffer.isEmpty()) {
-                throw new AssertionError("cannot type-check node which was not previously encountered");
-            }
+            throw new AssertionError("cannot type-check node which was not previously encountered");
         } else if (!types.get(node).isReference()) {
             String message = String.format("expected node with type <reference>; found %s", types.get(node));
-            exceptionBuffer.add(new SemanticException(node, message));
+            compiler.raise(new SemanticException(node, message));
         }
     }
 
     private TypeToken assertEqual(Node left, Node right) {
         if (!types.get(left).equals(types.get(right))) {
             String message = String.format("expected two equal types; found %s and %s", types.get(left), types.get(right));
-            exceptionBuffer.add(new SemanticException(left.parent(), message));
+            compiler.raise(new SemanticException(left.parent(), message));
         }
         return types.get(left);
     }
@@ -223,7 +215,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
         for (PCaseGroup caseGroup : switchStatement.getBody()) {
             if (caseGroup instanceof ADefaultCaseGroup) {
                 if (seenDefault) {
-                    exceptionBuffer.add(new SemanticException(caseGroup, "only one case group may contain a default"));
+                    compiler.raise(new SemanticException(caseGroup, "only one case group may contain a default"));
                 } else {
                     seenDefault = true;
                 }
@@ -244,7 +236,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                         alreadySeen.add(value);
                     }
                 } catch (SemanticException sx) {
-                    exceptionBuffer.add(sx);
+                    compiler.raise(sx);
                 }
             }
         }
@@ -279,20 +271,20 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 assertAssignableTo(returnValue, returnType);
             } else if (currentFunction instanceof AVoidFunctionDeclaration) {
                 if (returnValue != null) {
-                    exceptionBuffer.add(new SemanticException(returnValue, "expected expression of type void; found " + types.get(returnValue)));
+                    compiler.raise(new SemanticException(returnValue, "expected expression of type void; found " + types.get(returnValue)));
                 }
             } else {
-                exceptionBuffer.add(new SemanticException(currentFunction, "unknown function declaration flavor"));
+                compiler.raise(new SemanticException(currentFunction, "unknown function declaration flavor"));
             }
         } else {
-            exceptionBuffer.add(new SemanticException(returnStatement, "unexpected return statement"));
+            compiler.raise(new SemanticException(returnStatement, "unexpected return statement"));
         }
     }
 
     @Override
     public void inAClassDeclaration(AClassDeclaration classDeclaration) {
         if (currentClass != null) {
-            exceptionBuffer.add(new SemanticException(classDeclaration, "unexpected class declaration"));
+            compiler.raise(new SemanticException(classDeclaration, "unexpected class declaration"));
         } else {
             currentClass = classDeclaration;
         }
@@ -308,7 +300,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void inAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
         if (currentFunction != null) {
-            exceptionBuffer.add(new SemanticException(functionDeclaration, "unexpected function declaration"));
+            compiler.raise(new SemanticException(functionDeclaration, "unexpected function declaration"));
         } else {
             currentFunction = functionDeclaration;
         }
@@ -324,7 +316,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
         if (currentFunction != null) {
-            exceptionBuffer.add(new SemanticException(functionDeclaration, "unexpected function declaration"));
+            compiler.raise(new SemanticException(functionDeclaration, "unexpected function declaration"));
         } else {
             currentFunction = functionDeclaration;
         }
@@ -340,7 +332,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void inAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
         if (currentFunction != null) {
-            exceptionBuffer.add(new SemanticException(constructorDeclaration, "unexpected constructor declaration"));
+            compiler.raise(new SemanticException(constructorDeclaration, "unexpected constructor declaration"));
         } else {
             currentFunction = constructorDeclaration;
         }
@@ -355,7 +347,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException("constructor return type must be assignable to its enclosing type");
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
 
         currentFunction = null;
@@ -365,7 +357,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
     @Override
     public void inACastDeclaration(ACastDeclaration castDeclaration) {
         if (currentFunction != null) {
-            exceptionBuffer.add(new SemanticException(castDeclaration, "unexpected cast declaration"));
+            compiler.raise(new SemanticException(castDeclaration, "unexpected cast declaration"));
         } else {
             currentFunction = castDeclaration;
         }
@@ -380,7 +372,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException("cast return type must be assignable to its enclosing type");
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
 
         currentFunction = null;
@@ -486,7 +478,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             FunctionSymbol symbol = getScope().resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
             enforceFunctionInvocation(invocation, symbol);
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -507,7 +499,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException(invocation, "built-in types do not currently support any functions");
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -533,7 +525,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             }
             enforceFunctionInvocation(invocation, symbol);
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -550,7 +542,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                     }
                 }
             }
-            exceptionBuffer.add(new SemanticException(invocation, "cannot invoke a void function except as a standalone statement"));
+            compiler.raise(new SemanticException(invocation, "cannot invoke a void function except as a standalone statement"));
         }
     }
 
@@ -581,7 +573,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             ConstructorSymbol symbol = scope.resolveConstructor(parameterTypes);
             types.put(invocation, symbol.getReturnType());
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -608,7 +600,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 types.put(invocation, new UserDefinedTypeToken(currentClass.getName().getText()));
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -628,7 +620,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException(fieldAccess, "built-in types do not currently support any fields");
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -648,7 +640,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 throw new SemanticException(fieldAccess, "built-in types do not currently support any fields");
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -660,7 +652,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
             types.put(arrayAccess, ((ArrayTypeToken) arrayType).getElementType());
         } else {
             String message = String.format("expected array; found %s", arrayType);
-            exceptionBuffer.add(new SemanticException(arrayAccess, message));
+            compiler.raise(new SemanticException(arrayAccess, message));
         }
     }
 
@@ -852,7 +844,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
                 types.put(identifier, fieldSymbol.getType());
             }
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 }

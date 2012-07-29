@@ -12,22 +12,18 @@ import com.prealpha.diamond.compiler.node.AConstructorDeclaration;
 import com.prealpha.diamond.compiler.node.AFieldDeclaration;
 import com.prealpha.diamond.compiler.node.AFunctionDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
-import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.AVoidFunctionDeclaration;
-
-import java.util.List;
 
 import static com.google.common.base.Preconditions.*;
 
 final class SymbolTableBuilder extends ScopeAwareWalker {
-    private final List<Exception> exceptionBuffer;
+    private final Compiler compiler;
 
     private ClassSymbol currentClass;
 
-    public SymbolTableBuilder(AProgram root, List<Exception> exceptionBuffer) {
-        super(root);
-        checkNotNull(exceptionBuffer);
-        this.exceptionBuffer = exceptionBuffer;
+    public SymbolTableBuilder(Compiler compiler) {
+        checkNotNull(compiler);
+        this.compiler = compiler;
     }
 
     @Override
@@ -37,7 +33,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
             getScope().register(symbol);
             currentClass = symbol;
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
         super.inAClassDeclaration(classDeclaration);
     }
@@ -53,7 +49,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new FunctionSymbol(functionDeclaration, currentClass));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
         super.inAFunctionDeclaration(functionDeclaration);
     }
@@ -63,7 +59,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new FunctionSymbol(functionDeclaration, currentClass));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
         super.inAVoidFunctionDeclaration(functionDeclaration);
     }
@@ -73,7 +69,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new ConstructorSymbol(constructorDeclaration, currentClass));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
         super.inAConstructorDeclaration(constructorDeclaration);
     }
@@ -83,7 +79,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new CastSymbol(castDeclaration, currentClass));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -92,7 +88,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new FieldSymbol(fieldDeclaration, currentClass));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -101,7 +97,7 @@ final class SymbolTableBuilder extends ScopeAwareWalker {
         try {
             getScope().register(new LocalSymbol(localDeclaration));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 }

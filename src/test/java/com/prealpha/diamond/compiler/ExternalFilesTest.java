@@ -44,6 +44,6 @@ public final class ExternalFilesTest extends BasicMachineTest {
 
     private void testFileInPackage(String fileName) throws Exception {
         File file = new File(ExternalFilesTest.class.getResource(fileName).getFile());
-        test(Compiler.compile(file));
+        test(Compiler.getStandardCompiler().compile(file));
     }
 }

@@ -39,18 +39,15 @@ import java.util.Map;
  * @author Meyer Kizner
  *
  */
-abstract class ScopeAwareWalker extends DepthFirstAdapter {
+class ScopeAwareWalker extends DepthFirstAdapter {
     private final Map<Node, Scope> scopes;
 
-    private final AProgram root;
+    private AProgram root;
 
     private Scope current;
 
-    protected ScopeAwareWalker(AProgram root) {
-        this.scopes = Maps.newHashMap();
-        this.root = root;
-        this.current = new Scope(null);
-        scopes.put(this.root, this.current);
+    protected ScopeAwareWalker() {
+        scopes = Maps.newHashMap();
     }
 
     protected ScopeAwareWalker(ScopeAwareWalker scopeSource) {
@@ -82,6 +79,18 @@ abstract class ScopeAwareWalker extends DepthFirstAdapter {
 
     protected void onExitScope(Node scopeKey) {
         current = current.getParent();
+    }
+
+    @Override
+    public void inAProgram(AProgram program) {
+        if (root == null) {
+            root = program;
+            current = new Scope(null);
+            scopes.put(root, current);
+        } else {
+            assert (root == program);
+            assert (scopes.get(root) == current);
+        }
     }
 
     @Override

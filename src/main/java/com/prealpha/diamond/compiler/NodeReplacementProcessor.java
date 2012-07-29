@@ -56,36 +56,27 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PushbackReader;
-import java.util.List;
 
 import static com.google.common.base.Preconditions.*;
 
 final class NodeReplacementProcessor extends DepthFirstAdapter {
-    private final List<Exception> exceptionBuffer;
+    private final Compiler compiler;
 
-    private final File mainFile;
-
-    public NodeReplacementProcessor(List<Exception> exceptionBuffer, File mainFile) {
-        checkNotNull(exceptionBuffer);
-        checkNotNull(mainFile);
-        this.exceptionBuffer = exceptionBuffer;
-        this.mainFile = mainFile;
+    public NodeReplacementProcessor(Compiler compiler) {
+        checkNotNull(compiler);
+        this.compiler = compiler;
     }
 
     @Override
     public void outAIncludeTopLevelStatement(AIncludeTopLevelStatement include) {
         try {
             String fileName = ((AInclude) include.getInclude()).getFileName().getText();
-            File file = new File(mainFile.getCanonicalPath() + fileName);
+            File file = new File(compiler.getMainFile().getCanonicalPath() + fileName);
             PushbackReader reader = new PushbackReader(new FileReader(file));
             Parser parser = new Parser(new Lexer(reader));
             include.replaceBy(parser.parse().getPProgram());
-        } catch (IOException iox) {
-            exceptionBuffer.add(iox);
-        } catch (LexerException lx) {
-            exceptionBuffer.add(lx);
-        } catch (ParserException px) {
-            exceptionBuffer.add(px);
+        } catch (IOException|LexerException|ParserException ex) {
+            compiler.raise(ex);
         }
     }
 
@@ -96,7 +87,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AAddExpression addExpression = new AAddExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), addExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -107,7 +98,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             ASubtractExpression subtractExpression = new ASubtractExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), subtractExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -118,7 +109,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AMultiplyExpression multiplyExpression = new AMultiplyExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), multiplyExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -129,7 +120,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             ADivideExpression divideExpression = new ADivideExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), divideExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -140,7 +131,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AModulusExpression modulusExpression = new AModulusExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), modulusExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -151,7 +142,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             ABitwiseAndExpression bitwiseAndExpression = new ABitwiseAndExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), bitwiseAndExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -162,7 +153,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             ABitwiseXorExpression bitwiseXorExpression = new ABitwiseXorExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), bitwiseXorExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -173,7 +164,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             ABitwiseOrExpression bitwiseOrExpression = new ABitwiseOrExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), bitwiseOrExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -184,7 +175,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AShiftLeftExpression shiftLeftExpression = new AShiftLeftExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), shiftLeftExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -195,7 +186,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AShiftRightExpression shiftRightExpression = new AShiftRightExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), shiftRightExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
@@ -206,7 +197,7 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             AUnsignedShiftRightExpression unsignedShiftRightExpression = new AUnsignedShiftRightExpression(new APrimaryExpression(primaryExpression), assignment.getValue());
             assignment.replaceBy(new AAssignment(assignment.getTarget(), unsignedShiftRightExpression));
         } catch (SemanticException sx) {
-            exceptionBuffer.add(sx);
+            compiler.raise(sx);
         }
     }
 
