@@ -8,35 +8,32 @@ package com.prealpha.diamond.compiler;
 
 import com.google.common.collect.Lists;
 import com.prealpha.diamond.compiler.lexer.Lexer;
-import com.prealpha.diamond.compiler.lexer.LexerException;
 import com.prealpha.diamond.compiler.node.AProgram;
 import com.prealpha.diamond.compiler.node.Start;
 import com.prealpha.diamond.compiler.parser.Parser;
-import com.prealpha.diamond.compiler.parser.ParserException;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.PushbackReader;
 import java.io.Reader;
 import java.util.List;
 
 public final class Compiler {
-    public static void main(String[] args) throws IOException, LexerException, ParserException, SemanticException {
+    public static void main(String[] args) throws Exception {
         for (String instruction : compile(new File(args[0]))) {
             System.out.println(instruction);
         }
     }
 
-    public static List<String> compile(File file) throws IOException, LexerException, ParserException, SemanticException {
+    public static List<String> compile(File file) throws Exception {
         return doCompile(new FileReader(file), file);
     }
 
-    public static List<String> compile(Reader reader) throws IOException, LexerException, ParserException, SemanticException {
+    public static List<String> compile(Reader reader) throws Exception {
         return doCompile(reader, new File("."));
     }
 
-    private static List<String> doCompile(Reader reader, File mainFile) throws IOException, LexerException, ParserException, SemanticException {
+    private static List<String> doCompile(Reader reader, File mainFile) throws Exception {
         List<Exception> exceptionBuffer = Lists.newArrayList();
 
         Lexer lexer = new Lexer(new PushbackReader(reader));
@@ -62,12 +59,16 @@ public final class Compiler {
         return codeGenerator.getInstructions();
     }
 
-    private static void checkBuffer(List<Exception> exceptionBuffer) {
+    private static void checkBuffer(List<Exception> exceptionBuffer) throws Exception {
         if (!exceptionBuffer.isEmpty()) {
-            for (Exception exception : exceptionBuffer) {
-                exception.printStackTrace();
+            if (exceptionBuffer.size() > 1) {
+                for (Exception exception : exceptionBuffer) {
+                    exception.printStackTrace();
+                }
+                throw new AssertionError(String.format("compilation halted: %d syntax error(s)", exceptionBuffer.size()));
+            } else {
+                throw exceptionBuffer.get(0);
             }
-            throw new AssertionError(String.format("compilation halted: %d syntax error(s)", exceptionBuffer.size()));
         }
     }
 

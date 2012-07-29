@@ -203,11 +203,19 @@ final class Scope {
     }
 
     void register(LocalSymbol localSymbol) throws SemanticException {
+        assert (parent != null);
         String name = localSymbol.getName();
-        if (!localSymbols.containsKey(name)) {
-            localSymbols.put(name, localSymbol);
-        } else {
+        boolean isDuplicate;
+        try {
+            resolveLocal(localSymbol.getName());
+            isDuplicate = true;
+        } catch (SemanticException sx) {
+            isDuplicate = false;
+        }
+        if (isDuplicate) {
             throw new SemanticException(String.format("duplicate local symbol \"%s\"", name));
+        } else {
+            localSymbols.put(name, localSymbol);
         }
     }
 
