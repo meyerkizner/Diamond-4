@@ -36,8 +36,9 @@ Helpers
 	binary_digit = '0' | '1';
 	integral_literal_suffix = 'u' | 'U';
 	
-	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\\';
+	escape_sequence = '\b' | '\t' | '\n' | '\f' | '\r' | '\"' | '\' ''' | '\`' | '\\';
 	string_character = [input_character - ['"' + '\']] | escape_sequence;
+	native_character = [input_character - ['`' + '\']] | escape_sequence;
 
 
 Tokens
@@ -150,6 +151,7 @@ Tokens
 	string_literal = '"' string_character* '"';
 	true_literal = 'true';
 	false_literal = 'false';
+	native_literal = '`' native_character* '`';
 	
 	// identifier
 	identifier = identifier_letter identifier_letter_or_digit*;
@@ -180,6 +182,7 @@ Productions
 				{for_statement} for_statement {-> for_statement.statement};
 	standalone_statement {-> statement} =   {block} block {-> block.statement} |
 											{empty} empty_statement {-> empty_statement.statement} |
+											{native} native_literal {-> New statement.native(native_literal)} |
 											{expression} expression_statement {-> expression_statement.statement} |
 											{switch} switch_statement {-> switch_statement.statement} |
 											{do} do_statement {-> do_statement.statement} |
@@ -354,7 +357,8 @@ Productions
 					{user_defined} identifier {-> New type_token.user_defined(identifier)} |
 					{array} [element_type]:type_token bkt_pair {-> New type_token.array(element_type)};
 	modifier =  {private} private {-> New modifier.private()} |
-				{static} static {-> New modifier.static()};
+				{static} static {-> New modifier.static()} |
+				{native} native {-> New modifier.native()};
 
 
 Abstract Syntax Tree
@@ -375,6 +379,7 @@ Abstract Syntax Tree
 							{return} [return_value]:expression? |
 							{local_declaration} local_declaration |
 							{expression} expression |
+							{native} native_literal |
 							{block} statement* |
 							{empty};
 	case_group =            [values]:integral_literal+ [body]:statement+ |
@@ -471,5 +476,6 @@ Abstract Syntax Tree
 					{user_defined} identifier |
 					{array} [element_type]:type_token;
 	modifier =      {private} |
-					{static};
+					{static} |
+					{native};
 

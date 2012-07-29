@@ -66,6 +66,7 @@ import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
+import com.prealpha.diamond.compiler.node.ANativeStatement;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AOctalIntegralLiteral;
@@ -106,7 +107,7 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     private AClassDeclaration currentClass;
 
-    private Node currentFunction;
+    private ParametrizedSymbol currentFunction;
 
     public TypeEnforcer(Compiler compiler) {
         super(compiler.getScopeSource());
@@ -261,23 +262,22 @@ final class TypeEnforcer extends ScopeAwareWalker {
     public void outAReturnStatement(AReturnStatement returnStatement) {
         PExpression returnValue = returnStatement.getReturnValue();
         if (currentFunction != null) {
-            if (currentFunction instanceof AFunctionDeclaration || currentFunction instanceof AConstructorDeclaration) {
-                TypeToken returnType;
-                if (currentFunction instanceof AFunctionDeclaration) {
-                    returnType = TypeTokenUtil.fromNode(((AFunctionDeclaration) currentFunction).getReturnType());
-                } else {
-                    returnType = new UserDefinedTypeToken(((AConstructorDeclaration) currentFunction).getReturnType().getText());
-                }
-                assertAssignableTo(returnValue, returnType);
-            } else if (currentFunction instanceof AVoidFunctionDeclaration) {
-                if (returnValue != null) {
-                    compiler.raise(new SemanticException(returnValue, "expected expression of type void; found " + types.get(returnValue)));
-                }
+            if (currentFunction.getReturnType() != null) {
+                assertAssignableTo(returnValue, currentFunction.getReturnType());
+            } else if (returnValue != null) {
+                compiler.raise(new SemanticException(returnValue, "expected expression of type void; found " + types.get(returnValue)));
             } else {
-                compiler.raise(new SemanticException(currentFunction, "unknown function declaration flavor"));
+                compiler.raise(new SemanticException(currentFunction.getDeclaration(), "unknown function declaration flavor"));
             }
         } else {
             compiler.raise(new SemanticException(returnStatement, "unexpected return statement"));
+        }
+    }
+
+    @Override
+    public void outANativeStatement(ANativeStatement nativeStatement) {
+        if (currentFunction == null || !currentFunction.getModifiers().contains(Modifier.NATIVE)) {
+            compiler.raise(new SemanticException(nativeStatement, "native statements are only permitted within native functions"));
         }
     }
 
@@ -299,10 +299,15 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void inAFunctionDeclaration(AFunctionDeclaration functionDeclaration) {
-        if (currentFunction != null) {
-            compiler.raise(new SemanticException(functionDeclaration, "unexpected function declaration"));
-        } else {
-            currentFunction = functionDeclaration;
+        try {
+            if (currentFunction != null) {
+                throw new SemanticException(functionDeclaration, "unexpected function declaration");
+            } else {
+                List<TypeToken> parameterTypes = Lists.transform(functionDeclaration.getParameters(), TypeTokenUtil.getDeclarationFunction());
+                currentFunction = getScope().resolveFunction(functionDeclaration.getName().getText(), parameterTypes);
+            }
+        } catch (SemanticException sx) {
+            compiler.raise(sx);
         }
         super.inAFunctionDeclaration(functionDeclaration);
     }
@@ -315,10 +320,15 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void inAVoidFunctionDeclaration(AVoidFunctionDeclaration functionDeclaration) {
-        if (currentFunction != null) {
-            compiler.raise(new SemanticException(functionDeclaration, "unexpected function declaration"));
-        } else {
-            currentFunction = functionDeclaration;
+        try {
+            if (currentFunction != null) {
+                throw new SemanticException(functionDeclaration, "unexpected function declaration");
+            } else {
+                List<TypeToken> parameterTypes = Lists.transform(functionDeclaration.getParameters(), TypeTokenUtil.getDeclarationFunction());
+                currentFunction = getScope().resolveFunction(functionDeclaration.getName().getText(), parameterTypes);
+            }
+        } catch (SemanticException sx) {
+            compiler.raise(sx);
         }
         super.inAVoidFunctionDeclaration(functionDeclaration);
     }
@@ -331,10 +341,15 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void inAConstructorDeclaration(AConstructorDeclaration constructorDeclaration) {
-        if (currentFunction != null) {
-            compiler.raise(new SemanticException(constructorDeclaration, "unexpected constructor declaration"));
-        } else {
-            currentFunction = constructorDeclaration;
+        try {
+            if (currentFunction != null) {
+                throw new SemanticException(constructorDeclaration, "unexpected constructor declaration");
+            } else {
+                List<TypeToken> parameterTypes = Lists.transform(constructorDeclaration.getParameters(), TypeTokenUtil.getDeclarationFunction());
+                currentFunction = getScope().resolveConstructor(parameterTypes);
+            }
+        } catch (SemanticException sx) {
+            compiler.raise(sx);
         }
         super.inAConstructorDeclaration(constructorDeclaration);
     }
@@ -356,10 +371,15 @@ final class TypeEnforcer extends ScopeAwareWalker {
 
     @Override
     public void inACastDeclaration(ACastDeclaration castDeclaration) {
-        if (currentFunction != null) {
-            compiler.raise(new SemanticException(castDeclaration, "unexpected cast declaration"));
-        } else {
-            currentFunction = castDeclaration;
+        try {
+            if (currentFunction != null) {
+                throw new SemanticException(castDeclaration, "unexpected cast declaration");
+            } else {
+                TypeToken valueType = TypeTokenUtil.fromNode(((ALocalDeclaration) castDeclaration.getParameter()).getType());
+                currentFunction = getScope().resolveCast(valueType);
+            }
+        } catch (SemanticException sx) {
+            compiler.raise(sx);
         }
         super.inACastDeclaration(castDeclaration);
     }

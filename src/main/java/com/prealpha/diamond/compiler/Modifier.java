@@ -6,12 +6,13 @@
 
 package com.prealpha.diamond.compiler;
 
+import com.prealpha.diamond.compiler.node.ANativeModifier;
 import com.prealpha.diamond.compiler.node.APrivateModifier;
 import com.prealpha.diamond.compiler.node.AStaticModifier;
 import com.prealpha.diamond.compiler.node.PModifier;
 
 enum Modifier {
-    PRIVATE(false, true, true, false), STATIC(false, true, true, false);
+    PRIVATE(false, true, true, false), STATIC(false, true, true, false), NATIVE(false, true, false, false);
 
     private final boolean modifiesClasses;
 
@@ -49,6 +50,8 @@ enum Modifier {
             return PRIVATE;
         } else if (modifierNode instanceof AStaticModifier) {
             return STATIC;
+        } else if (modifierNode instanceof ANativeModifier) {
+            return NATIVE;
         } else {
             throw new UnsupportedOperationException("unknown modifier node type: " + modifierNode.getClass().getSimpleName());
         }

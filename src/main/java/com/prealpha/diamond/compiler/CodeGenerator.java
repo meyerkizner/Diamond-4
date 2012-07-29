@@ -76,6 +76,7 @@ import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationStatement;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
+import com.prealpha.diamond.compiler.node.ANativeStatement;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
 import com.prealpha.diamond.compiler.node.ANumericNegationExpression;
 import com.prealpha.diamond.compiler.node.AParentheticalPrimaryExpression;
@@ -710,6 +711,12 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseAExpressionStatement(AExpressionStatement statement) {
         inline(statement.getExpression());
+    }
+
+    @Override
+    public void caseANativeStatement(ANativeStatement statement) {
+        String nativeText = statement.getNativeLiteral().getText();
+        write(nativeText.substring(1, nativeText.length() - 1)); // strip the backticks
     }
 
     @Override
