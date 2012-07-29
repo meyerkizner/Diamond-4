@@ -73,6 +73,7 @@ import com.prealpha.diamond.compiler.node.ALessThanExpression;
 import com.prealpha.diamond.compiler.node.ALiteralPrimaryExpression;
 import com.prealpha.diamond.compiler.node.ALocalDeclaration;
 import com.prealpha.diamond.compiler.node.ALocalDeclarationAssignmentTarget;
+import com.prealpha.diamond.compiler.node.ALocalDeclarationStatement;
 import com.prealpha.diamond.compiler.node.AModulusExpression;
 import com.prealpha.diamond.compiler.node.AMultiplyExpression;
 import com.prealpha.diamond.compiler.node.ANotEqualExpression;
@@ -420,7 +421,7 @@ final class CodeGenerator extends ScopeAwareWalker {
         assert stack.contains(symbol);
         int stackOffset = 0;
         for (TypedSymbol stackSymbol : stack) {
-            if (stackSymbol == symbol) {
+            if (stackSymbol.equals(symbol)) {
                 break;
             } else {
                 stackOffset += 1;
@@ -655,6 +656,11 @@ final class CodeGenerator extends ScopeAwareWalker {
     }
 
     @Override
+    public void caseALocalDeclarationStatement(ALocalDeclarationStatement statement) {
+        inline(statement.getLocalDeclaration());
+    }
+
+    @Override
     public void caseABreakStatement(ABreakStatement statement) {
         Iterator<FlowStructure> iterator = flowStructures.iterator();
         boolean flag;
@@ -813,8 +819,8 @@ final class CodeGenerator extends ScopeAwareWalker {
                 stack.push(thisSymbol);
             }
 
-            for (PLocalDeclaration parameterDeclaration : parameters) {
-                inline(parameterDeclaration);
+            for (LocalSymbol parameter : symbol.getParameters()) {
+                stack.push(parameter);
             }
 
             // push the JSR pointer
@@ -855,6 +861,8 @@ final class CodeGenerator extends ScopeAwareWalker {
         try {
             expressionResult = getScope().resolveLocal(declaration.getName().getText());
             stack.push(expressionResult);
+            write("SET PUSH EX");
+            evaluateStackExpression(expressionResult);
         } catch (SemanticException sx) {
             compiler.raise(sx);
         }
@@ -1516,8 +1524,6 @@ final class CodeGenerator extends ScopeAwareWalker {
     @Override
     public void caseALocalDeclarationAssignmentTarget(ALocalDeclarationAssignmentTarget assignmentTarget) {
         inline(assignmentTarget.getLocalDeclaration());
-        write("SET PUSH EX");
-        evaluateStackExpression(expressionResult);
     }
 
     @Override

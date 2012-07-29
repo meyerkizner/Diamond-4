@@ -186,7 +186,8 @@ Productions
 											{delete} delete_statement {-> delete_statement.statement} |
 											{break} break_statement {-> break_statement.statement} |
 											{continue} continue_statement {-> continue_statement.statement} |
-											{return} return_statement {-> return_statement.statement};
+											{return} return_statement {-> return_statement.statement} |
+											{local_declaration} local_declaration {-> New statement.local_declaration(local_declaration)};
 	statement_no_short_if {-> statement} =  {standalone} standalone_statement {-> standalone_statement.statement} |
 											{if_then_else_statement} if_then_else_statement_no_short_if {-> if_then_else_statement_no_short_if.statement} |
 											{while_statement} while_statement_no_short_if {-> while_statement_no_short_if.statement} |
@@ -244,6 +245,8 @@ Productions
 	continue_statement {-> statement} = continue semi {-> New statement.continue()};
 	
 	return_statement {-> statement} = return [return_value]:expression? semi {-> New statement.return(return_value)};
+
+	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
 	primary_expression =    {literal} literal {-> New primary_expression.literal(literal)} |
 							{identifier} identifier {-> New primary_expression.identifier(identifier)} |
@@ -341,7 +344,7 @@ Productions
 											{identifier} identifier {-> New assignment_target.identifier(identifier)} |
 											{field_access} field_access {-> New assignment_target.field_access(field_access)} |
 											{array_access} array_access {-> New assignment_target.array_access(array_access)};
-	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
+
 	
 	expression = assignment_expression {-> assignment_expression.expression};
 	
@@ -370,6 +373,7 @@ Abstract Syntax Tree
 							{break} |
 							{continue} |
 							{return} [return_value]:expression? |
+							{local_declaration} local_declaration |
 							{expression} expression |
 							{block} statement* |
 							{empty};
@@ -388,10 +392,10 @@ Abstract Syntax Tree
 							{void} [modifiers]:modifier* [name]:identifier [parameters]:local_declaration* [body]:statement;
 	constructor_declaration = [modifiers]:modifier* [return_type]:identifier [parameters]:local_declaration* [body]:statement;
 	cast_declaration = [modifiers]:modifier* [return_type]:identifier [parameter]:local_declaration [body]:statement;
-	
-	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
 	include = [file_name]:string_literal;
+
+	local_declaration = [modifiers]:modifier* [type]:type_token [name]:identifier;
 
 	primary_expression =        {literal} literal |
 								{identifier} identifier |
