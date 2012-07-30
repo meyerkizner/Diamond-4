@@ -6,50 +6,39 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
 import java.io.File;
 
 import static org.junit.Assert.*;
 
-/*
- * TODO: right now, testing the values is implementation-sensitive
- */
-public final class ExternalFilesTest extends MachineTest {
+public final class ExternalFilesTest extends PipelineTest {
     @Test
     public void testHelloHeaplessWorld() throws Exception {
         testFileInPackage("HelloHeaplessWorld.dmd");
-        assertEquals(42, getReg(0));
-        assertEquals(0, getReg(1));
+        assertEquals(42, (char) getPipeline().remove());
     }
 
     @Test
     public void testLoopArithmetic() throws Exception {
         testFileInPackage("LoopArithmetic.dmd");
-        assertEquals(100, getMem()[0xfffe]);
+        assertEquals(100, (char) getPipeline().remove());
     }
 
     @Test
     public void testEulerProblem19() throws Exception {
         testFileInPackage("EulerProblem19.dmd");
-        assertEquals(171, getMem()[0xfffe]);
+        assertEquals(171, (char) getPipeline().remove());
     }
 
     @Test
     public void testArithmeticObject() throws Exception {
         testFileInPackage("ArithmeticObject.dmd");
-        assertEquals(10, getMem()[0xfffd]);
-    }
-
-    @Test
-    public void testPushPipeline() throws Exception {
-        testFileInPackage("PushPipeline.dmd");
-        assertEquals(42, (char) getPipeline().remove());
+        assertEquals(10, (char) getPipeline().remove());
     }
 
     private void testFileInPackage(String fileName) throws Exception {
         File file = new File(ExternalFilesTest.class.getResource(fileName).getFile());
-        test(Compiler.getStandardCompiler().compile(file));
+        testWithPipeline(file);
     }
 }

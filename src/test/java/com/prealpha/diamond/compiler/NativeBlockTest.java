@@ -6,12 +6,11 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.prealpha.dcputil.emulator.testing.MachineTest;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public final class NativeBlockTest extends MachineTest {
+public final class NativeBlockTest extends PipelineTest {
     @Test
     public void testNativeMainMethod() throws Exception {
         String diamond = "native void main() { `SET B 0x5555` }";
@@ -21,10 +20,9 @@ public final class NativeBlockTest extends MachineTest {
 
     @Test
     public void testNativeMethod() throws Exception {
-        String diamond = "void main() { int foo = testMethod(); } native int testMethod() { `SET A 0x5555` }";
-        test(Compiler.getStrictCompiler().compile(diamond));
-        assertEquals(0x5555, getReg(0));
-        assertEquals(0x5555, getMem()[0xfffe]);
+        String diamond = "void main() { pipeline(testMethod()); } native int testMethod() { `SET A 0x5555` }";
+        testWithPipeline(diamond);
+        assertEquals(0x5555, (char) getPipeline().remove());
     }
 
     @Test(expected = SemanticException.class)

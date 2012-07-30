@@ -7,5 +7,5 @@ int max(int a, int b) {
 }
 
 void main() {
-	max(42, 23);
+	pipeline(max(42, 23));
 }
