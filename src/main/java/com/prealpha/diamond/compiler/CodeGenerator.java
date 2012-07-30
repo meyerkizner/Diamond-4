@@ -907,6 +907,7 @@ final class CodeGenerator extends ScopeAwareWalker {
     public void caseAThisPrimaryExpression(AThisPrimaryExpression primaryExpression) {
         assert (thisSymbol != null);
         evaluateStackExpression(thisSymbol);
+        write("SET A [A]"); // this returns a value, not a variable
     }
 
     @Override
@@ -992,6 +993,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             Scope scope = getScope(getScope().resolveClass(enclosingClassName).getDeclaration());
             List<TypeToken> parameterTypes = Lists.transform(invocation.getParameters(), Functions.forMap(types));
             FunctionSymbol symbol = scope.resolveFunction(invocation.getFunctionName().getText(), parameterTypes);
+            inline(invocation.getTarget());
             evaluateParametrizedInvocation(symbol, invocation.getParameters());
         } catch (SemanticException sx) {
             compiler.raise(sx);
@@ -1132,6 +1134,7 @@ final class CodeGenerator extends ScopeAwareWalker {
             FieldSymbol symbol = scope.resolveField(fieldAccess.getFieldName().getText());
 
             inline(fieldAccess.getTarget());
+            requireValue();
             int fieldOffset = 0;
             for (FieldSymbol declaredField : scope.getFields()) {
                 if (declaredField == symbol) {
@@ -1568,21 +1571,22 @@ final class CodeGenerator extends ScopeAwareWalker {
                 expressionResult = getScope().resolveLocal(identifier.getText());
                 evaluateStackExpression(expressionResult);
             } catch (SemanticException sx) {
-                expressionResult = getScope().resolveField(identifier.getText());
-                assert (thisSymbol != null);
-                evaluateStackExpression(thisSymbol);
+                FieldSymbol field = getScope().resolveField(identifier.getText());
 
                 int fieldOffset = 0;
                 for (TypedSymbol declaredField : getScope().getFields()) {
-                    if (declaredField == expressionResult) {
+                    if (declaredField == field) {
                         break;
                     } else {
                         fieldOffset += 1;
                     }
                 }
+
+                inline(new AThisPrimaryExpression());
                 if (fieldOffset > 0) {
                     write(String.format("ADD A 0x%04x", fieldOffset));
                 }
+                expressionResult = field;
             }
         } catch (SemanticException sx) {
             compiler.raise(sx);
