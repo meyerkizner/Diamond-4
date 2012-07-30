@@ -26,6 +26,9 @@ import java.util.Map;
 
 import static com.google.common.base.Preconditions.*;
 
+/*
+ * TODO: phases need some way to back out of the current statement when raise() is called
+ */
 public abstract class Compiler {
     public static void main(String[] args) throws IOException, LexerException, ParserException, SemanticException {
         for (String line : getStandardCompiler().compile(new File(args[0]))) {

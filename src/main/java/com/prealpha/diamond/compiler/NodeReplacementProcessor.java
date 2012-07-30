@@ -8,6 +8,7 @@ package com.prealpha.diamond.compiler;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.prealpha.diamond.compiler.analysis.DepthFirstAdapter;
 import com.prealpha.diamond.compiler.lexer.Lexer;
 import com.prealpha.diamond.compiler.lexer.LexerException;
@@ -66,15 +67,22 @@ import java.io.InputStreamReader;
 import java.io.PushbackReader;
 import java.io.Reader;
 import java.util.List;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
 final class NodeReplacementProcessor extends DepthFirstAdapter {
     private final Compiler compiler;
 
+    private final Set<File> alreadyIncludedFiles;
+
+    private final Set<String> alreadyIncludedClasses;
+
     public NodeReplacementProcessor(Compiler compiler) {
         checkNotNull(compiler);
         this.compiler = compiler;
+        this.alreadyIncludedFiles = Sets.newHashSet();
+        this.alreadyIncludedClasses = Sets.newHashSet();
     }
 
     @Override
@@ -83,7 +91,10 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
             String fileName = include.getFileName().getText();
             fileName = fileName.substring(1, fileName.length() - 1); // strip the quotation marks
             File file = new File(compiler.getMainFile().getCanonicalPath() + fileName);
-            replaceInclude(include, new FileReader(file));
+            if (!alreadyIncludedFiles.contains(file)) {
+                replaceInclude(include, new FileReader(file));
+                alreadyIncludedFiles.add(file);
+            }
         } catch (IOException|LexerException|ParserException ex) {
             compiler.raise(ex);
         }
@@ -93,8 +104,11 @@ final class NodeReplacementProcessor extends DepthFirstAdapter {
     public void outAStandardInclude(AStandardInclude include) {
         try {
             String className = include.getClassName().getText();
-            InputStream stream = getClass().getResourceAsStream(className + ".dmd");
-            replaceInclude(include, new InputStreamReader(stream));
+            if (!alreadyIncludedClasses.contains(className)) {
+                InputStream stream = getClass().getResourceAsStream(className + ".dmd");
+                replaceInclude(include, new InputStreamReader(stream));
+                alreadyIncludedClasses.add(className);
+            }
         } catch (IOException|LexerException|ParserException ex) {
             compiler.raise(ex);
         }
