@@ -62,6 +62,11 @@ final class ConstructorSymbol implements ParametrizedSymbol {
     }
 
     @Override
+    public String getName() {
+        return "new";
+    }
+
+    @Override
     public ClassSymbol getDeclaringClass() {
         return declaringClass;
     }

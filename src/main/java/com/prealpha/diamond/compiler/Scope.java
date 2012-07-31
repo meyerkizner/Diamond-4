@@ -6,29 +6,22 @@
 
 package com.prealpha.diamond.compiler;
 
-import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.collect.Table;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static com.google.common.base.Preconditions.*;
 
 final class Scope {
     private final Scope parent;
 
     private final Map<String, ClassSymbol> classSymbols;
 
-    private final Table<String, List<TypeToken>, FunctionSymbol> functionSymbols;
-
-    private final Map<List<TypeToken>, ConstructorSymbol> constructorSymbols;
-
-    private final Map<TypeToken, CastSymbol> castSymbols;
+    private final Map<ParametrizedSignature, ParametrizedSymbol> parametrizedSymbols;
 
     private final Map<String, FieldSymbol> fieldSymbols;
 
@@ -37,9 +30,7 @@ final class Scope {
     Scope(Scope parent) {
         this.parent = parent;
         classSymbols = Maps.newHashMap();
-        functionSymbols = HashBasedTable.create();
-        constructorSymbols = Maps.newHashMap();
-        castSymbols = Maps.newHashMap();
+        parametrizedSymbols = Maps.newHashMap();
         fieldSymbols = Maps.newLinkedHashMap();
         localSymbols = Maps.newLinkedHashMap();
     }
@@ -67,120 +58,41 @@ final class Scope {
         }
     }
 
-    void register(FunctionSymbol functionSymbol) throws SemanticException {
-        String name = functionSymbol.getName();
-        List<TypeToken> parameters = Lists.transform(functionSymbol.getParameters(), TypeTokenUtil.getSymbolFunction());
-        if (!functionSymbols.contains(name, parameters)) {
-            functionSymbols.put(name, parameters, functionSymbol);
+    void register(ParametrizedSymbol parametrizedSymbol) throws SemanticException {
+        ParametrizedSignature signature = new ParametrizedSignature(parametrizedSymbol);
+        if (!parametrizedSymbols.containsKey(signature)) {
+            parametrizedSymbols.put(signature, parametrizedSymbol);
         } else {
-            throw new SemanticException(String.format("duplicate function symbol \"%s%s\"", name, parameters));
+            throw new SemanticException(String.format("duplicate parametrized symbol %s", signature));
         }
     }
 
-    public FunctionSymbol resolveFunction(String name, List<? extends TypeToken> parameterTypes) throws SemanticException {
-        Set<FunctionSymbol> matches = resolveParametrized(functionSymbols.row(name).values(), parameterTypes);
-        if (matches.size() == 1) {
-            return matches.iterator().next();
-        } else if (matches.size() > 1) {
-            throw new SemanticException(String.format("ambiguous function symbol \"%s%s\"", name, parameterTypes));
+    public FunctionSymbol resolveFunction(String name, List<TypeToken> parameterTypes) throws SemanticException {
+        checkArgument(!name.equals("new"));
+        checkArgument(!name.equals("cast"));
+        return (FunctionSymbol) resolveParametrized(new ParametrizedSignature(name, parameterTypes));
+    }
+
+    public ConstructorSymbol resolveConstructor(List<TypeToken> parameterTypes) throws SemanticException {
+        return (ConstructorSymbol) resolveParametrized(new ParametrizedSignature("new", parameterTypes));
+    }
+
+    public CastSymbol resolveCast(TypeToken valueType) throws SemanticException {
+        return (CastSymbol) resolveParametrized(new ParametrizedSignature("cast", ImmutableList.of(valueType)));
+    }
+
+    public ParametrizedSymbol resolveParametrized(ParametrizedSignature signature) throws SemanticException {
+        Set<ParametrizedSignature> matchingSignatures = Sets.filter(parametrizedSymbols.keySet(), signature);
+        if (matchingSignatures.size() == 1) {
+            return parametrizedSymbols.get(matchingSignatures.iterator().next());
+        } else if (matchingSignatures.size() > 1) {
+            String message = String.format("ambiguous parametrized signature: %s; matches: %s", signature, matchingSignatures);
+            throw new SemanticException(message);
         } else if (parent != null) {
-            return parent.resolveFunction(name, parameterTypes);
+            return parent.resolveParametrized(signature);
         } else {
-            throw new SemanticException(String.format("cannot resolve function symbol \"%s%s\"", name, parameterTypes));
+            throw new SemanticException(String.format("cannot resolve parametrized symbol %s", signature));
         }
-    }
-
-    public Map<List<TypeToken>, FunctionSymbol> resolveFunction(String name) throws SemanticException {
-        if (functionSymbols.containsRow(name)) {
-            return functionSymbols.row(name);
-        } else if (parent != null) {
-            return parent.resolveFunction(name);
-        } else {
-            throw new SemanticException(String.format("cannot resolve function symbol \"%s\"", name));
-        }
-    }
-
-    void register(ConstructorSymbol constructorSymbol) throws SemanticException {
-        List<TypeToken> parameters = Lists.transform(constructorSymbol.getParameters(), TypeTokenUtil.getSymbolFunction());
-        if (!constructorSymbols.containsKey(parameters)) {
-            constructorSymbols.put(parameters, constructorSymbol);
-        } else {
-            throw new SemanticException(String.format("duplicate constructor \"new%s\"", parameters));
-        }
-    }
-
-    public ConstructorSymbol resolveConstructor(List<? extends TypeToken> parameterTypes) throws SemanticException {
-        Set<ConstructorSymbol> matches = resolveParametrized(constructorSymbols.values(), parameterTypes);
-        if (matches.size() == 1) {
-            return matches.iterator().next();
-        } else if (matches.size() > 1) {
-            throw new SemanticException(String.format("ambiguous constructor symbol \"new%s\"", parameterTypes));
-        } else if (parent != null) {
-            return parent.resolveConstructor(parameterTypes);
-        } else {
-            throw new SemanticException(String.format("cannot resolve constructor symbol \"new%s\"", parameterTypes));
-        }
-    }
-
-    public Map<List<TypeToken>, ConstructorSymbol> resolveConstructor() throws SemanticException {
-        if (!constructorSymbols.isEmpty()) {
-            return ImmutableMap.copyOf(constructorSymbols);
-        } else if (parent != null) {
-            return parent.resolveConstructor();
-        } else {
-            throw new SemanticException("cannot resolve constructor symbol \"new\"");
-        }
-    }
-
-    void register(CastSymbol castSymbol) throws SemanticException {
-        assert castSymbol.getParameters().size() == 1;
-        TypeToken parameter = castSymbol.getParameters().get(0).getType();
-        if (!castSymbols.containsKey(parameter)) {
-            castSymbols.put(parameter, castSymbol);
-        } else {
-            throw new SemanticException(String.format("duplicate cast \"cast(%s)\"", parameter));
-        }
-    }
-
-    public CastSymbol resolveCast(TypeToken parameterType) throws SemanticException {
-        Set<CastSymbol> matches = resolveParametrized(castSymbols.values(), ImmutableList.of(parameterType));
-        if (matches.size() == 1) {
-            return matches.iterator().next();
-        } else if (matches.size() > 1) {
-            throw new SemanticException(String.format("ambiguous cast symbol \"cast(%s)\"", parameterType));
-        } else if (parent != null) {
-            return parent.resolveCast(parameterType);
-        } else {
-            throw new SemanticException(String.format("cannot resolve cast symbol \"cast(%s)\"", parameterType));
-        }
-    }
-
-    public Map<TypeToken, CastSymbol> resolveCast() throws SemanticException {
-        if (!castSymbols.isEmpty()) {
-            return ImmutableMap.copyOf(castSymbols);
-        } else if (parent != null) {
-            return parent.resolveCast();
-        } else {
-            throw new SemanticException("cannot resolve cast symbol \"cast\"");
-        }
-    }
-
-    private static <T extends ParametrizedSymbol> Set<T> resolveParametrized(Collection<T> symbols, List<? extends TypeToken> parameterTypes) {
-        Set<T> matches = Sets.newHashSet();
-        for (T symbol : symbols) {
-            int matchCount = 0;
-            for (int i = 0; i < parameterTypes.size(); i++) {
-                TypeToken expectedType = symbol.getParameters().get(i).getType();
-                TypeToken actualType = parameterTypes.get(i);
-                if (actualType.isAssignableTo(expectedType)) {
-                    matchCount++;
-                }
-            }
-            if (matchCount == parameterTypes.size()) {
-                matches.add(symbol);
-            }
-        }
-        return matches;
     }
 
     void register(FieldSymbol fieldSymbol) throws SemanticException {

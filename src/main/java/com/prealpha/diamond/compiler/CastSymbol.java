@@ -56,6 +56,11 @@ final class CastSymbol implements ParametrizedSymbol {
     }
 
     @Override
+    public String getName() {
+        return "cast";
+    }
+
+    @Override
     public ClassSymbol getDeclaringClass() {
         return declaringClass;
     }

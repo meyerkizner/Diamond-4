@@ -453,6 +453,11 @@ final class CodeGenerator extends ScopeAwareWalker {
         }
 
         @Override
+        public String getName() {
+            return null;
+        }
+
+        @Override
         public TypeToken getType() {
             return type;
         }
